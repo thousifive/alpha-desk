@@ -100,6 +100,8 @@ def _short_repr(value: Any) -> str:
         r = repr(value)
     except Exception:  # a broken __repr__ shouldn't break the report
         r = f"<unrepresentable {type(value).__name__}>"
+    if "\n" in r:  # tables (DataFrames) print as many lines; one is enough inline
+        r = r.splitlines()[0] + " …"
     return r if len(r) <= MAX_REPR_CHARS else r[: MAX_REPR_CHARS - 1] + "…"
 
 

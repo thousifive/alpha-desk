@@ -1,4 +1,4 @@
-// Mirrors backend/app/schemas.py. Keep in sync by hand for M1; codegen from OpenAPI later.
+// Mirrors backend/app/schemas.py. Kept in sync by hand; codegen from OpenAPI later.
 
 export type Cell = string | number | boolean | null
 export type NodeState = 'locked' | 'available' | 'mastered' | 'coming_soon'
@@ -19,9 +19,42 @@ export interface Boss {
   description: string
 }
 
+export interface Streak {
+  current: number
+  best: number
+  freezes: number
+  max_freezes: number
+  active_today: boolean
+  next_milestone: number
+}
+
+export interface QuestItem {
+  position: number
+  slug: string
+  title: string
+  type: Exercise['type']
+  persona: Persona
+  difficulty: number
+  branch_id: string
+  branch_title: string
+  node_title: string
+  minutes: number
+  completed: boolean
+}
+
+export interface QuestBoard {
+  day: string // ISO date, player-local
+  items: QuestItem[]
+  xp_per_quest: number
+  all_done_bonus: number
+  done: boolean
+  est_minutes: number
+}
+
 export interface Progress {
   xp_total: number
   level: Level | null
+  streak: Streak | null // null until TODO(me) M2-1
   passed_exercises: number
   playable_exercises: number
   mastered_nodes: number
@@ -69,7 +102,7 @@ export interface BranchDetail extends BranchSummary {
 export interface Exercise {
   slug: string
   title: string
-  type: 'sql' | 'quiz' | 'python' | 'polars' | 'review'
+  type: 'sql' | 'quiz' | 'python' | 'review'
   persona: Persona
   difficulty: number
   prompt_md: string
@@ -81,6 +114,9 @@ export interface Exercise {
   node_state: NodeState
   passed: boolean
   next_slug: string | null
+  visible_tests: string // python only
+  packages: string[]
+  timeout_s: number
 }
 
 export interface ResultSet {
@@ -92,6 +128,7 @@ export interface AttemptIn {
   code: string
   result?: ResultSet
   choice?: number
+  tests?: { name: string; passed: boolean }[]
   duration_ms: number
   hints_used?: number
 }
@@ -106,4 +143,9 @@ export interface AttemptOut {
   already_passed: boolean
   level_before: Level | null
   level_after: Level | null
+  quest_position: number | null
+  quest_xp: number
+  quests_all_done: boolean
+  streak_xp: number
+  streak: Streak | null
 }

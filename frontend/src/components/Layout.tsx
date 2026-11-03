@@ -1,11 +1,17 @@
+import { useEffect } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
 
-import { useLogout, useProgress } from '../api/hooks'
+import { browserTimezone, useLogout, useProgress, useSyncTimezone } from '../api/hooks'
 
 export function Layout() {
   const progress = useProgress()
   const logout = useLogout()
+  const syncTz = useSyncTimezone()
   const p = progress.data
+
+  // Once per app load: keeps "today" right if the player travels after logging in.
+  const { mutate: syncTimezone } = syncTz
+  useEffect(() => syncTimezone(browserTimezone()), [syncTimezone])
 
   const navCls = ({ isActive }: { isActive: boolean }) =>
     `px-2 py-1 rounded ${isActive ? 'text-amber bg-panel-2' : 'text-muted hover:text-ink'}`
@@ -22,6 +28,12 @@ export function Layout() {
           </NavLink>
           <NavLink to="/branches/sql-olap" className={navCls}>
             SQL &amp; OLAP
+          </NavLink>
+          <NavLink to="/branches/python-fastapi" className={navCls}>
+            PYTHON
+          </NavLink>
+          <NavLink to="/branches/data-pipelines" className={navCls}>
+            PIPELINES
           </NavLink>
         </nav>
         <div className="ml-auto flex items-center gap-3 font-mono text-xs">

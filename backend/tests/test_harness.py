@@ -121,3 +121,17 @@ def test_collect_tests_rules() -> None:
         ns,
     )
     assert [n for n, _ in collect_tests(ns)] == ["test_b", "test_a"]
+
+
+async def test_multiline_locals_are_collapsed() -> None:
+    tests = "def test_x():\n    table = 'shape: (5, 4)\\nrow1\\nrow2'\n    assert False\n"
+    r = await _run("", tests)
+    assert "table='shape: (5, 4)\\nrow1\\nrow2'" in r["tests"][0]["error"]  # str repr is 1 line
+
+    class Frame:
+        def __repr__(self) -> str:
+            return "shape: (5, 4)\nrow1\nrow2"
+
+    from app.pyrunner.harness import _short_repr
+
+    assert _short_repr(Frame()) == "shape: (5, 4) …"

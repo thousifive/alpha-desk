@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { Link } from 'react-router'
 
 import type { AttemptOut } from '../../api/types'
+import { totalGain } from './useSubmission'
 
 interface Props {
   out: AttemptOut
@@ -10,7 +11,7 @@ interface Props {
 }
 
 export function SubmitFeedback({ out, nextSlug, branchId }: Props) {
-  const gained = out.xp_awarded + out.node_bonus_xp
+  const gained = totalGain(out)
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -27,6 +28,18 @@ export function SubmitFeedback({ out, nextSlug, branchId }: Props) {
           {out.already_passed
             ? 'Already solved, no XP this time.'
             : `+${out.xp_awarded} XP${out.node_bonus_xp ? ` · node mastered +${out.node_bonus_xp}` : ''} · total ${out.xp_total.toLocaleString()}`}
+        </p>
+      )}
+      {out.quest_position !== null && (
+        <p className="mt-1 font-mono text-xs text-cyan">
+          ◆ Daily quest {out.quest_position + 1} done · +{out.quest_xp} XP
+          {out.quests_all_done && ' · all quests cleared'}
+        </p>
+      )}
+      {out.streak && (
+        <p className="mt-1 font-mono text-xs text-amber">
+          ▲ {out.streak.current}-day streak
+          {out.streak_xp > 0 && ` · milestone +${out.streak_xp} XP`}
         </p>
       )}
       {out.explanation && <p className="mt-2 text-muted">{out.explanation}</p>}

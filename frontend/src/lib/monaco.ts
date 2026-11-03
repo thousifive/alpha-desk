@@ -1,10 +1,11 @@
 import { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor/editor/editor.api'
+import 'monaco-editor/languages/definitions/python/register'
 import 'monaco-editor/languages/definitions/sql/register'
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
 
 // @monaco-editor/react fetches Monaco from a CDN by default; point it at our bundled copy
-// (core API + SQL grammar only, not every language) so it works offline and stays pinned.
+// (core API + SQL and Python grammars only, not every language) so it works offline and stays pinned.
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() }
 loader.config({ monaco })
 
@@ -18,6 +19,8 @@ monaco.editor.defineTheme('alpha-desk', {
     { token: 'number', foreground: '3ccbd6' },
     { token: 'comment', foreground: '6f7d8b', fontStyle: 'italic' },
     { token: 'predefined.sql', foreground: 'a78bfa' },
+    { token: 'keyword.python', foreground: 'f5a524' },
+    { token: 'type.identifier.python', foreground: 'a78bfa' },
   ],
   colors: {
     'editor.background': '#0e1318',

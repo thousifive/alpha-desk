@@ -4,13 +4,14 @@ import { useLayoutEffect, useRef } from 'react'
 import { monaco } from '../../lib/monaco'
 
 interface Props {
+  language: 'sql' | 'python'
   value: string
   onChange: (v: string) => void
   onRun: () => void
   onSubmit: () => void
 }
 
-export function SqlEditor({ value, onChange, onRun, onSubmit }: Props) {
+export function CodeEditor({ language, value, onChange, onRun, onSubmit }: Props) {
   // Monaco commands are registered once on mount; refs keep them pointing at the latest
   // callbacks without re-registering (which would stack duplicate bindings).
   const runRef = useRef(onRun)
@@ -29,7 +30,7 @@ export function SqlEditor({ value, onChange, onRun, onSubmit }: Props) {
 
   return (
     <Editor
-      language="sql"
+      language={language}
       theme="alpha-desk"
       value={value}
       onChange={(v) => onChange(v ?? '')}
@@ -41,7 +42,8 @@ export function SqlEditor({ value, onChange, onRun, onSubmit }: Props) {
         scrollBeyondLastLine: false,
         renderLineHighlight: 'line',
         padding: { top: 12 },
-        tabSize: 2,
+        tabSize: language === 'python' ? 4 : 2,
+        insertSpaces: true,
         automaticLayout: true,
       }}
     />

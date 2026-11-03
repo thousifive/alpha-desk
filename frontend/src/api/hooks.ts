@@ -8,6 +8,7 @@ import type {
   BranchSummary,
   Exercise,
   Progress,
+  QuestBoard,
 } from './types'
 
 export const qk = {
@@ -16,7 +17,11 @@ export const qk = {
   branches: ['branches'] as const,
   branch: (id: string) => ['branches', id] as const,
   exercise: (slug: string) => ['exercises', slug] as const,
+  quests: ['quests', 'today'] as const,
 }
+
+/** The browser's IANA zone. "Today" for quests and streaks is computed in it server-side. */
+export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone
 
 export function useMe() {
   return useQuery({
@@ -37,7 +42,10 @@ export function useLogin() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (password: string) =>
-      api.post<{ authenticated: boolean }>('/auth/login', { password }),
+      api.post<{ authenticated: boolean }>('/auth/login', {
+        password,
+        timezone: browserTimezone(),
+      }),
     onSuccess: (data) => qc.setQueryData(qk.me, data),
   })
 }
@@ -65,6 +73,24 @@ export const useBranch = (id: string) =>
 export const useExercise = (slug: string) =>
   useQuery({ queryKey: qk.exercise(slug), queryFn: () => api.get<Exercise>(`/exercises/${slug}`) })
 
+export const useQuests = () =>
+  useQuery({
+    queryKey: qk.quests,
+    queryFn: () => api.get<QuestBoard>('/quests/today'),
+    retry: (n, e) => !(e instanceof ApiError && e.status === 501) && n < 2,
+  })
+
+/** Hidden tests, fetched only at Submit time (never part of the exercise payload). */
+export const fetchHiddenTests = (slug: string) =>
+  api.post<{ hidden_tests: string }>(`/exercises/${slug}/test-bundle`)
+
+export function useSyncTimezone() {
+  return useMutation({
+    mutationFn: (timezone: string) =>
+      api.put<{ authenticated: boolean }>('/auth/timezone', { timezone }),
+  })
+}
+
 export function useSubmitAttempt(slug: string) {
   const qc = useQueryClient()
   return useMutation({
@@ -75,6 +101,7 @@ export function useSubmitAttempt(slug: string) {
       void qc.invalidateQueries({ queryKey: qk.progress })
       void qc.invalidateQueries({ queryKey: qk.branches })
       void qc.invalidateQueries({ queryKey: ['exercises'] })
+      void qc.invalidateQueries({ queryKey: qk.quests })
     },
   })
 }

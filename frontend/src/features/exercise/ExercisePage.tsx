@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 
 import { ApiError } from '../../api/client'
-import { useExercise, useSubmitAttempt } from '../../api/hooks'
-import type { AttemptOut, Exercise, Level } from '../../api/types'
-import { LevelUpModal } from '../../components/LevelUpModal'
-import { XpPop } from '../../components/XpPop'
+import { useExercise } from '../../api/hooks'
+import type { Exercise } from '../../api/types'
 import { loadDraft, saveDraft } from '../../lib/drafts'
 import { runQuery, type QueryResult } from '../../lib/duckdb/db'
 import { useDuckDB } from '../../lib/duckdb/useDuckDB'
@@ -14,9 +12,13 @@ import { Markdown } from '../../lib/markdown'
 import { QuizView } from './QuizView'
 import { ResultGrid } from './ResultGrid'
 import { SchemaPanel } from './SchemaPanel'
-import { SqlEditor } from './SqlEditor'
+import { CodeEditor } from './CodeEditor'
 import { SubmitFeedback } from './SubmitFeedback'
 import { TicketHeader } from './TicketHeader'
+import { useSubmission } from './useSubmission'
+
+// Its own chunk: Python tickets pull in the Pyodide client, SQL tickets don't need it.
+const PythonWorkbench = lazy(() => import('./PythonWorkbench'))
 
 export default function ExercisePage() {
   const { slug = '' } = useParams()
@@ -49,6 +51,11 @@ function Desk({ ex }: { ex: Exercise }) {
           <p className="mt-3 font-mono text-xs text-up">✓ You've closed this ticket before.</p>
         )}
         {ex.type === 'sql' && <SchemaSection />}
+        {ex.type === 'python' && ex.packages.length > 0 && (
+          <p className="mt-4 font-mono text-[11px] text-muted">
+            packages: {ex.packages.join(', ')}
+          </p>
+        )}
       </aside>
       {!playable ? (
         <LockedNotice ex={ex} />
@@ -56,6 +63,10 @@ function Desk({ ex }: { ex: Exercise }) {
         <SqlWorkbench ex={ex} />
       ) : ex.type === 'quiz' ? (
         <QuizWorkbench ex={ex} />
+      ) : ex.type === 'python' ? (
+        <Suspense fallback={<p className="p-6 font-mono text-xs text-muted">Loading desk…</p>}>
+          <PythonWorkbench ex={ex} />
+        </Suspense>
       ) : (
         <LockedNotice ex={ex} />
       )}
@@ -94,50 +105,6 @@ function LockedNotice({ ex }: { ex: Exercise }) {
       </div>
     </section>
   )
-}
-
-/** Shared submit plumbing: XP pop, level-up detection, error text for 501 TODO(me)s. */
-function useSubmission(ex: Exercise) {
-  const submit = useSubmitAttempt(ex.slug)
-  const [out, setOut] = useState<AttemptOut | null>(null)
-  const [levelUp, setLevelUp] = useState<Level | null>(null)
-  const [popId, setPopId] = useState(0)
-  const [startedAt] = useState(() => performance.now())
-
-  const send = useCallback(
-    async (body: { code: string; result?: QueryResult; choice?: number }) => {
-      const res = await submit.mutateAsync({
-        code: body.code,
-        result: body.result && { columns: body.result.columns, rows: body.result.rows },
-        choice: body.choice,
-        duration_ms: Math.round(performance.now() - startedAt),
-      })
-      setOut(res)
-      if (res.passed && res.xp_awarded + res.node_bonus_xp > 0) setPopId((n) => n + 1)
-      if (res.level_before && res.level_after && res.level_after.index > res.level_before.index) {
-        setLevelUp(res.level_after)
-      }
-    },
-    [submit, startedAt],
-  )
-
-  const error =
-    submit.error instanceof ApiError
-      ? submit.error.status === 501
-        ? `${submit.error.message}. Finish it in the backend to enable submitting.`
-        : submit.error.message
-      : submit.error
-        ? String(submit.error)
-        : null
-
-  const pop = out && out.passed ? out.xp_awarded + out.node_bonus_xp : 0
-  const overlay = (
-    <>
-      <XpPop id={popId} amount={pop} />
-      <LevelUpModal level={levelUp} onClose={() => setLevelUp(null)} />
-    </>
-  )
-  return { send, out, error, pending: submit.isPending, overlay }
 }
 
 function SqlWorkbench({ ex }: { ex: Exercise }) {
@@ -186,7 +153,8 @@ function SqlWorkbench({ ex }: { ex: Exercise }) {
   return (
     <section className="grid min-h-[70dvh] grid-rows-[minmax(200px,1fr)_auto_minmax(160px,1fr)] lg:min-h-0">
       <div className="min-h-0 border-b border-line">
-        <SqlEditor
+        <CodeEditor
+          language="sql"
           value={code}
           onChange={setCode}
           onRun={() => void run()}
