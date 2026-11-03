@@ -13,7 +13,7 @@ from app.content.schema import (
     SqlExercise,
 )
 from app.deps import ContentDep, SessionDep, SettingsDep
-from app.game.service import get_user, level_out, passed_slugs
+from app.game.service import award_xp, get_user, level_out, local_today, passed_slugs
 from app.game.unlocks import is_mastered, node_states
 from app.game.xp import xp_for_attempt
 from app.grading.sql import ResultSet, compare_result_sets, expected_result
@@ -134,9 +134,17 @@ async def submit_attempt(
             node_bonus = loc.node.xp_reward
 
     user = await get_user(session)
+    today = local_today(user)
     level_before = level_out(user.xp_total, content)
-    user.xp_total += xp + node_bonus
-    session.add(user)
+    # Ledger keys make each payout idempotent even if two submits race past already_passed.
+    if not await award_xp(
+        session, user, source="attempt", ref_key=f"attempt:{slug}", amount=xp, day=today
+    ):
+        xp = 0
+    if not await award_xp(
+        session, user, source="node", ref_key=f"node:{loc.node.slug}", amount=node_bonus, day=today
+    ):
+        node_bonus = 0
     session.add(
         Attempt(
             exercise_slug=slug,
@@ -145,6 +153,7 @@ async def submit_attempt(
             hints_used=body.hints_used,
             duration_ms=body.duration_ms,
             xp_awarded=xp + node_bonus,
+            local_date=today,
         )
     )
     await session.commit()

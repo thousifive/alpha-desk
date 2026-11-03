@@ -2,10 +2,10 @@
 table columns and public JSON evolve independently, and some columns (Exercise.spec)
 must never be serialized to the browser."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -15,7 +15,10 @@ def utcnow() -> datetime:
 
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    xp_total: int = 0  # cached sum of Attempt.xp_awarded; cheap to read on every page
+    xp_total: int = 0  # cached sum of XpEvent.amount; cheap to read on every page
+    # IANA zone name ("Europe/London"), sent by the browser at login. "Today" for quests and
+    # streaks is the player's local date, not the server's UTC date.
+    timezone: str = "UTC"
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -56,5 +59,45 @@ class Attempt(SQLModel, table=True):
     passed: bool = False
     hints_used: int = 0
     duration_ms: int = 0
-    xp_awarded: int = 0
+    xp_awarded: int = 0  # exercise + node-mastery XP paid by this attempt (quest XP is separate)
     created_at: datetime = Field(default_factory=utcnow)
+    # Player-local calendar day, frozen at insert time. Streaks group by this; recomputing it
+    # from created_at later would shift days if the player changes timezone.
+    local_date: date = Field(index=True)
+
+
+class XpEvent(SQLModel, table=True):
+    """Append-only XP ledger. User.xp_total is a cache of SUM(amount).
+
+    `ref_key` is unique and names *what* was paid for ("quest:2026-11-03:1"), so paying the
+    same thing twice (double-click, retry, race) hits the constraint instead of the wallet.
+    That's the same idempotency-key idea as an upsert in an ETL load.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    source: str  # "attempt" | "quest" | "quest_bonus" | "streak" | "legacy"
+    ref_key: str = Field(unique=True)
+    amount: int
+    local_date: date = Field(index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class Quest(SQLModel, table=True):
+    """One row per player-local day. The unique day makes lazy generation race-safe."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    # Named `day`, not `date`: a field called `date` would shadow the `date` type in the
+    # class body, and Pydantic can no longer resolve the annotation.
+    day: date = Field(unique=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class QuestItem(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("quest_id", "position"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    quest_id: int = Field(foreign_key="quest.id", index=True)
+    position: int
+    exercise_slug: str = Field(foreign_key="exercise.slug")
+    completed_at: datetime | None = None
+    xp_awarded: int = 0

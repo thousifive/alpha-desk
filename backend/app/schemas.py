@@ -13,6 +13,11 @@ NodeStateT = Literal["locked", "available", "mastered", "coming_soon"]
 
 class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
+    timezone: str | None = Field(default=None, max_length=64)  # IANA name from the browser
+
+
+class TimezoneIn(BaseModel):
+    timezone: str = Field(min_length=1, max_length=64)
 
 
 class MeResponse(BaseModel):

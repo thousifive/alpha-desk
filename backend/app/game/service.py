@@ -1,13 +1,57 @@
 """Glue between game rules (pure functions) and the database."""
 
+from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.content.schema import ContentBundle
 from app.game.levels import level_info
 from app.game.unlocks import NodeStatus, branch_playable
-from app.models import Attempt, User
+from app.models import Attempt, User, XpEvent
 from app.schemas import BossOut, LevelOut
+
+
+def valid_timezone(name: str) -> bool:
+    try:
+        ZoneInfo(name)  # zoneinfo reads the IANA database (the tzdata package as fallback)
+    except (ZoneInfoNotFoundError, ValueError):
+        return False
+    return True
+
+
+def local_today(user: User, now: datetime | None = None) -> date:
+    """The player's calendar date right now. Quests and streaks roll over at *local*
+    midnight; using the server's UTC date would flip "today" at 7pm in New York."""
+    now = now or datetime.now(UTC)
+    tz = ZoneInfo(user.timezone) if valid_timezone(user.timezone) else UTC
+    return now.astimezone(tz).date()
+
+
+async def award_xp(
+    session: AsyncSession, user: User, *, source: str, ref_key: str, amount: int, day: date
+) -> bool:
+    """Pay `amount` XP for `ref_key` at most once. Returns True if it was paid now.
+
+    The SELECT is the fast path; the unique constraint on ref_key is the real guarantee
+    (two concurrent requests can both pass the SELECT). begin_nested() opens a SAVEPOINT, so
+    a duplicate rolls back just this INSERT, not the caller's whole transaction.
+    """
+    if amount <= 0:
+        return False
+    seen = await session.exec(select(XpEvent.id).where(XpEvent.ref_key == ref_key))
+    if seen.first() is not None:
+        return False
+    try:
+        async with session.begin_nested():
+            session.add(XpEvent(source=source, ref_key=ref_key, amount=amount, local_date=day))
+    except IntegrityError:
+        return False
+    user.xp_total += amount
+    session.add(user)
+    return True
 
 
 async def passed_slugs(session: AsyncSession) -> set[str]:

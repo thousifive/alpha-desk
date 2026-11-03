@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.auth import SESSION_KEY, AuthRequired, verify_password
 from app.config import Settings, get_settings
-from app.schemas import LoginRequest, MeResponse
+from app.deps import SessionDep
+from app.game.service import get_user, valid_timezone
+from app.schemas import LoginRequest, MeResponse, TimezoneIn
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -14,12 +16,32 @@ async def login(
     body: LoginRequest,
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
+    session: SessionDep,
 ) -> MeResponse:
     if not verify_password(body.password, settings.app_password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong password")
     # Clear before setting: a fresh session on login avoids session fixation.
     request.session.clear()
     request.session[SESSION_KEY] = True
+    if body.timezone and valid_timezone(body.timezone):  # bad zone: ignore, don't block login
+        await _set_timezone(session, body.timezone)
+    return MeResponse(authenticated=True)
+
+
+async def _set_timezone(session: SessionDep, tz: str) -> None:
+    user = await get_user(session)
+    if user.timezone != tz:
+        user.timezone = tz
+        session.add(user)
+        await session.commit()
+
+
+@router.put("/timezone", response_model=MeResponse)
+async def set_timezone(body: TimezoneIn, _: AuthRequired, session: SessionDep) -> MeResponse:
+    """Called on app load, so travelling (or a DST-less zone change) updates "today"."""
+    if not valid_timezone(body.timezone):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown timezone")
+    await _set_timezone(session, body.timezone)
     return MeResponse(authenticated=True)
 
 
