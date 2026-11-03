@@ -54,6 +54,9 @@ The SQLite database is created by Alembic on first `make dev-backend`, and `/con
 synced into it on every startup. The fictional market dataset is committed in
 `data/meridian/`; `make seed` regenerates it deterministically.
 
+Python tickets run in Pyodide, loaded from the jsDelivr CDN on first use (about 10 MB, then
+cached by the browser), so they need internet access. SQL tickets are fully self-hosted.
+
 ### Environment variables
 `backend/.env` (gitignored):
 ```
@@ -73,7 +76,9 @@ SESSION_SECRET=...
 
 ### Your TODO(me) tasks
 Search for `TODO(me)` in `backend/app`. Each has strict-xfail tests: when you finish
-one, its tests start passing and fail the run until you delete the `pytestmark` line.
+one, its tests start passing and fail the run until you delete the xfail marker (a
+`pytestmark = ...` line, or the `todo` / `needs_todos` decorators in mixed test files).
+Until then the feature degrades visibly: a 501 "offline" message or a notice in the UI.
 
 ## Roadmap
 - [x] M1: Dashboard, XP and levels, full SQL branch

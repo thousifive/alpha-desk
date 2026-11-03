@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     dataset_dir: Path = REPO_ROOT / "data" / "meridian"
     sync_content_on_startup: bool = True
     # Branches whose playable_from is at or before this milestone are playable.
-    current_milestone: str = "M1"
+    current_milestone: str = "M2"
 
 
 # lru_cache turns this into a lazy singleton; FastAPI dependencies can call it cheaply,
