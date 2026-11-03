@@ -38,8 +38,9 @@ and data side, explain non-obvious Python and data-engineering decisions in shor
 - Fictional data only: the fund is "Meridian Capital"; never use real fund or client names.
 
 ## Commands
-<!-- Fill in once the project is scaffolded (ask Claude Code to update this section) -->
-- Frontend dev: `TBD`
-- Backend dev: `TBD`
-- Run all tests: `TBD`
-- Lint/format: `TBD`
+- Frontend dev: `make dev-frontend` (Vite on :5173, proxies `/api` to `API_URL` or :8000)
+- Backend dev: `make dev-backend` (runs Alembic migrations, then uvicorn on :8000)
+- Both: `make dev`
+- Run all tests: `make test` (pytest + vitest; `TODO(me)` tests are strict xfail)
+- Lint/format: `make lint` / `make fmt`
+- Content: `make sync-content` after editing `/content` YAML; `make seed` regenerates the dataset
