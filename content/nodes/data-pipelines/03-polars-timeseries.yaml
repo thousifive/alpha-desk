@@ -4,5 +4,103 @@ description: join_asof, group_by_dynamic, and rolling windows.
 order: 3
 prerequisites:
 - polars-lazy
-xp_reward: 50
-exercises: []
+xp_reward: 60
+exercises:
+  - slug: polars-asof-quotes
+    type: python
+    packages: [polars]
+    persona: marcus
+    title: Which quote was live at fill time?
+    difficulty: 2
+    prompt: |
+      For transaction-cost analysis, attach to each trade the **last quote at or before**
+      the trade's time **for the same ticker**.
+
+      `attach_quotes(trades, quotes)`:
+      - `trades`: `ticker`, `ts` (int, ms), `qty`
+      - `quotes`: `ticker`, `ts`, `mid`
+
+      Return the trades (same row count, sorted by `ts`) with an extra `mid` column; `null`
+      if no earlier quote exists for that ticker.
+
+      *Marcus: an exact-time join loses 99% of trades. A cross-ticker match is worse:
+      it's silently wrong.*
+    starter_code: |
+      import polars as pl
+
+
+      def attach_quotes(trades: pl.DataFrame, quotes: pl.DataFrame) -> pl.DataFrame:
+          return trades.join(quotes, on=["ticker", "ts"], how="left")
+    visible_tests: |
+      import polars as pl
+
+      from solution import attach_quotes
+
+
+      def test_exact_time_match():
+          t = pl.DataFrame({"ticker": ["A"], "ts": [10], "qty": [1]})
+          q = pl.DataFrame({"ticker": ["A"], "ts": [10], "mid": [5.0]})
+          assert attach_quotes(t, q)["mid"].to_list() == [5.0]
+    hidden_tests: |
+      import polars as pl
+
+      from solution import attach_quotes
+
+      QUOTES = pl.DataFrame(
+          {
+              "ticker": ["AURX", "BLNK", "AURX", "BLNK"],
+              "ts": [100, 150, 200, 300],
+              "mid": [10.0, 50.0, 10.5, 51.0],
+          }
+      )
+
+
+      def test_last_quote_at_or_before():
+          trades = pl.DataFrame({"ticker": ["AURX", "AURX"], "ts": [199, 200], "qty": [1, 2]})
+          assert attach_quotes(trades, QUOTES)["mid"].to_list() == [10.0, 10.5]
+
+
+      def test_never_crosses_tickers():
+          # At ts=250 the latest quote overall is AURX's; BLNK's latest is 50.0 at ts=150.
+          trades = pl.DataFrame({"ticker": ["BLNK"], "ts": [250], "qty": [5]})
+          assert attach_quotes(trades, QUOTES)["mid"].to_list() == [50.0]
+
+
+      def test_no_earlier_quote_is_null_and_rows_kept():
+          trades = pl.DataFrame(
+              {"ticker": ["BLNK", "AURX", "AURX"], "ts": [120, 50, 400], "qty": [1, 1, 1]}
+          )
+          out = attach_quotes(trades, QUOTES)
+          assert out.height == 3
+          assert out["ts"].to_list() == [50, 120, 400]
+          assert out["mid"].to_list() == [None, None, 10.5]
+    solution: |
+      import polars as pl
+
+
+      def attach_quotes(trades: pl.DataFrame, quotes: pl.DataFrame) -> pl.DataFrame:
+          # join_asof needs both sides sorted by the `on` key. `by` restricts matches to the
+          # same ticker; strategy="backward" means "latest at or before".
+          return trades.sort("ts").join_asof(
+              quotes.sort("ts"), on="ts", by="ticker", strategy="backward"
+          )
+
+  - slug: quiz-rolling-vs-dynamic
+    type: quiz
+    persona: marcus
+    title: Rolling or dynamic?
+    difficulty: 2
+    prompt: |
+      You have minute bars and need **one row per ticker per hour** with the hour's total
+      volume. Which Polars tool fits?
+    choices:
+      - "`rolling_sum(window_size=60)` on volume"
+      - "`group_by_dynamic(\"ts\", every=\"1h\", group_by=\"ticker\")` with `pl.col(\"volume\").sum()`"
+      - "`join_asof` against an hourly calendar"
+      - "`shift(60)` and subtract"
+    answer: 1
+    explanation: |
+      `group_by_dynamic` **buckets** time into fixed windows and gives one output row per
+      window, like `time_bucket` / `date_trunc` + GROUP BY in SQL. A `rolling_*` function
+      keeps one row per input row (a moving window), which suits rolling volatility, not
+      resampling.

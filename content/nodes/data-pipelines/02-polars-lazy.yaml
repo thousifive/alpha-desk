@@ -5,4 +5,106 @@ order: 2
 prerequisites:
 - polars-basics
 xp_reward: 50
-exercises: []
+exercises:
+  - slug: polars-lazy-top-movers
+    type: python
+    packages: [polars]
+    persona: marcus
+    title: Top movers, lazily
+    difficulty: 2
+    prompt: |
+      `top_movers(lf, day, n)` gets a **LazyFrame** of daily prices (`ticker`, `date`,
+      `ret`) and must return a **LazyFrame** (not a DataFrame) with the `n` biggest
+      absolute moves on `day`: columns `ticker`, `ret`, `abs_ret`, sorted by `abs_ret`
+      descending.
+
+      Don't call `.collect()` inside. The caller decides when to run the plan, so Polars can
+      optimize the whole query (e.g. filter by date before anything else).
+
+      *Marcus: I chain three of these together. If each one collects, I pay three times.*
+    starter_code: |
+      import polars as pl
+
+
+      def top_movers(lf: pl.LazyFrame, day: int, n: int) -> pl.LazyFrame:
+          df = lf.collect()
+          df = df.filter(pl.col("date") == day).with_columns(abs_ret=pl.col("ret").abs())
+          return df.sort("abs_ret", descending=True).head(n).select("ticker", "ret", "abs_ret")
+    visible_tests: |
+      import polars as pl
+
+      from solution import top_movers
+
+
+      def test_returns_rows():
+          lf = pl.LazyFrame({"ticker": ["A"], "date": [1], "ret": [0.1]})
+          out = top_movers(lf, 1, 5)
+          df = out.collect() if isinstance(out, pl.LazyFrame) else out
+          assert df["ticker"].to_list() == ["A"]
+    hidden_tests: |
+      import polars as pl
+
+      from solution import top_movers
+
+      LF = pl.LazyFrame(
+          {
+              "ticker": ["AURX", "BLNK", "CVTA", "QBTX", "AURX"],
+              "date": [2, 2, 2, 2, 1],
+              "ret": [0.01, -0.08, 0.05, -0.02, 0.50],
+          }
+      )
+
+
+      def test_returns_a_lazyframe():
+          assert isinstance(top_movers(LF, 2, 2), pl.LazyFrame)
+
+
+      def test_biggest_absolute_moves_on_the_day():
+          out = top_movers(LF, 2, 2).collect()
+          assert out.columns == ["ticker", "ret", "abs_ret"]
+          assert out["ticker"].to_list() == ["BLNK", "CVTA"]
+
+
+      def test_other_days_ignored():
+          out = top_movers(LF, 2, 10).collect()
+          assert "AURX" in out["ticker"].to_list() and out.height == 4
+          assert 0.5 not in out["ret"].to_list()
+    solution: |
+      import polars as pl
+
+
+      def top_movers(lf: pl.LazyFrame, day: int, n: int) -> pl.LazyFrame:
+          # Every step only adds to the query plan; nothing runs until .collect().
+          return (
+              lf.filter(pl.col("date") == day)
+              .with_columns(abs_ret=pl.col("ret").abs())
+              .sort("abs_ret", descending=True)
+              .head(n)
+              .select("ticker", "ret", "abs_ret")
+          )
+
+  - slug: quiz-predicate-pushdown
+    type: quiz
+    persona: marcus
+    title: What does pushdown buy you?
+    difficulty: 2
+    prompt: |
+      ```python
+      (pl.scan_parquet("prices/*.parquet")
+         .with_columns(ret=pl.col("close").pct_change().over("ticker"))
+         .filter(pl.col("ticker") == "AURX")
+         .collect())
+      ```
+
+      With the lazy API, what can the optimizer do with that `filter`?
+    choices:
+      - Nothing; filters always run in the order you write them.
+      - Push the ticker filter down into the Parquet scan, since the window is partitioned by ticker, so it reads far fewer rows.
+      - Run the filter on the GPU.
+      - Cache the result so the next query is instant.
+    answer: 1
+    explanation: |
+      Lazy queries are optimized as a whole. Because `pct_change().over("ticker")` only looks
+      within one ticker, filtering on ticker first gives the same answer, so Polars can push
+      the predicate into the scan and skip other tickers' row groups. (A filter on `date`
+      would *not* be safe to push below that window, which is the trap from the SQL LAG node.)

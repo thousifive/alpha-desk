@@ -78,3 +78,101 @@ exercises:
           return df.sort("ticker", "date").with_columns(
               ret=pl.col("close").pct_change().over("ticker")
           )
+
+  - slug: polars-sector-exposure
+    type: python
+    packages: [polars]
+    persona: priya
+    title: Gross exposure by sector
+    difficulty: 2
+    prompt: |
+      Priya wants gross exposure **by sector**, biggest first.
+
+      `sector_exposure(positions, tickers)`:
+      - `positions`: `ticker`, `qty` (negative = short), `px`
+      - `tickers`: `ticker`, `sector`
+
+      Return a frame with columns `sector`, `gross` where `gross = Σ |qty × px|`, sorted by
+      `gross` descending. Positions whose ticker has no sector go under `"Unknown"`.
+
+      *Priya: if half my book is "Unknown" I want to see that too, not have it vanish.*
+    starter_code: |
+      import polars as pl
+
+
+      def sector_exposure(positions: pl.DataFrame, tickers: pl.DataFrame) -> pl.DataFrame:
+          return (
+              positions.join(tickers, on="ticker")
+              .group_by("sector")
+              .agg(gross=(pl.col("qty") * pl.col("px")).sum())
+          )
+    visible_tests: |
+      import polars as pl
+
+      from solution import sector_exposure
+
+
+      def test_single_sector():
+          pos = pl.DataFrame({"ticker": ["AURX"], "qty": [10], "px": [5.0]})
+          tic = pl.DataFrame({"ticker": ["AURX"], "sector": ["Tech"]})
+          assert sector_exposure(pos, tic).to_dicts() == [{"sector": "Tech", "gross": 50.0}]
+    hidden_tests: |
+      import polars as pl
+
+      from solution import sector_exposure
+
+      POS = pl.DataFrame(
+          {
+              "ticker": ["AURX", "BLNK", "CVTA", "NEWX"],
+              "qty": [100, -200, 50, 10],
+              "px": [10.0, 5.0, 20.0, 3.0],
+          }
+      )
+      TIC = pl.DataFrame({"ticker": ["AURX", "BLNK", "CVTA"], "sector": ["Tech", "Energy", "Tech"]})
+
+
+      def test_gross_by_sector_sorted():
+          out = sector_exposure(POS, TIC)
+          assert out.columns == ["sector", "gross"]
+          assert out.to_dicts() == [
+              {"sector": "Tech", "gross": 2000.0},
+              {"sector": "Energy", "gross": 1000.0},
+              {"sector": "Unknown", "gross": 30.0},
+          ]
+
+
+      def test_shorts_count_positively():
+          pos = pl.DataFrame({"ticker": ["BLNK"], "qty": [-1], "px": [7.0]})
+          assert sector_exposure(pos, TIC)["gross"].to_list() == [7.0]
+    solution: |
+      import polars as pl
+
+
+      def sector_exposure(positions: pl.DataFrame, tickers: pl.DataFrame) -> pl.DataFrame:
+          return (
+              # A left join keeps positions without a sector; fill_null labels them.
+              positions.join(tickers, on="ticker", how="left")
+              .with_columns(pl.col("sector").fill_null("Unknown"))
+              .group_by("sector")
+              .agg(gross=(pl.col("qty") * pl.col("px")).abs().sum())
+              .sort("gross", descending=True)
+          )
+
+  - slug: quiz-polars-map-elements
+    type: quiz
+    persona: marcus
+    title: Why not just use a lambda?
+    difficulty: 1
+    prompt: |
+      A teammate writes `df.with_columns(pl.col("close").map_elements(lambda x: x * 1.01))`
+      and Polars prints a performance warning. Why?
+    choices:
+      - Lambdas are not allowed inside with_columns.
+      - map_elements calls Python once per value, which skips the vectorized Rust engine and parallelism; pl.col("close") * 1.01 does the same thing natively.
+      - map_elements copies the DataFrame to Pandas first.
+      - The warning only appears for Float32 columns.
+    answer: 1
+    explanation: |
+      Polars expressions compile to vectorized Rust kernels that run across cores. A Python
+      lambda forces a call back into the interpreter **for each element**, often 10-100×
+      slower. Reach for `map_elements` only when no expression exists for what you need.

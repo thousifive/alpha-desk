@@ -4,5 +4,96 @@ description: Gaps, forward-fill, and late-arriving corrections.
 order: 4
 prerequisites:
 - polars-timeseries
-xp_reward: 50
-exercises: []
+xp_reward: 60
+exercises:
+  - slug: polars-forward-fill
+    type: python
+    packages: [polars]
+    persona: marcus
+    title: Fill the gaps, but honestly
+    difficulty: 2
+    prompt: |
+      The vendor skipped some closes (`null`). For valuation we carry the last known close
+      forward, **but**:
+
+      - only within the same ticker (never borrow another ticker's price),
+      - never fill *leading* nulls (a ticker's first known price can't come from nowhere),
+      - add a boolean `filled` column that's `True` only on rows we filled.
+
+      `fill_closes(df)` gets `ticker`, `date`, `close` and returns those plus `filled`,
+      sorted by `ticker`, `date`.
+
+      *Marcus: filled prices are fine for marks. They're poison for return calculations,
+      so flag them.*
+    starter_code: |
+      import polars as pl
+
+
+      def fill_closes(df: pl.DataFrame) -> pl.DataFrame:
+          return df.with_columns(pl.col("close").forward_fill(), filled=pl.lit(False))
+    visible_tests: |
+      import polars as pl
+
+      from solution import fill_closes
+
+
+      def test_simple_gap():
+          df = pl.DataFrame({"ticker": ["A", "A"], "date": [1, 2], "close": [10.0, None]})
+          assert fill_closes(df)["close"].to_list() == [10.0, 10.0]
+    hidden_tests: |
+      import polars as pl
+
+      from solution import fill_closes
+
+      DF = pl.DataFrame(
+          {
+              "ticker": ["B", "A", "A", "B", "A", "B"],
+              "date": [1, 1, 2, 2, 3, 3],
+              "close": [None, 10.0, None, 50.0, None, None],
+          }
+      )
+
+
+      def test_fills_within_ticker_only():
+          out = fill_closes(DF)
+          assert out["ticker"].to_list() == ["A", "A", "A", "B", "B", "B"]
+          assert out["close"].to_list() == [10.0, 10.0, 10.0, None, 50.0, 50.0]
+
+
+      def test_filled_flag():
+          out = fill_closes(DF)
+          assert out["filled"].to_list() == [False, True, True, False, False, True]
+
+
+      def test_columns():
+          assert fill_closes(DF).columns == ["ticker", "date", "close", "filled"]
+    solution: |
+      import polars as pl
+
+
+      def fill_closes(df: pl.DataFrame) -> pl.DataFrame:
+          return df.sort("ticker", "date").with_columns(
+              # Flag first, from the raw column: null before, non-null after = we filled it.
+              filled=pl.col("close").is_null() & pl.col("close").forward_fill().over("ticker").is_not_null(),
+              close=pl.col("close").forward_fill().over("ticker"),
+          ).select("ticker", "date", "close", "filled")
+
+  - slug: quiz-late-corrections
+    type: quiz
+    persona: lena
+    title: The vendor corrected last Tuesday
+    difficulty: 2
+    prompt: |
+      Our nightly job loads "yesterday's" prices. Today the vendor re-sent a **corrected
+      close for a date 5 days ago**. What's the most robust pipeline design?
+    choices:
+      - Ignore it; history is history.
+      - Each run re-pulls a trailing window (e.g. the last 7 days) and upserts by (ticker, date), so corrections overwrite cleanly.
+      - Append the correction as a new row and let queries pick the latest.
+      - Delete the whole prices table and reload all of history every night.
+    answer: 1
+    explanation: |
+      A **lookback window plus idempotent upserts** absorbs late corrections at small cost.
+      Appending creates duplicates every query must remember to dedupe, and full reloads get
+      slower forever. If you also need to know what the data looked like *before* the
+      correction (audit, reproducing a backtest), store versions with a `loaded_at` column.

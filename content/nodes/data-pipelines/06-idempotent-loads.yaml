@@ -4,5 +4,96 @@ description: Upserts, partition overwrite, and re-runnable jobs.
 order: 6
 prerequisites:
 - schema-validation
-xp_reward: 50
-exercises: []
+xp_reward: 70
+exercises:
+  - slug: polars-upsert
+    type: python
+    packages: [polars]
+    persona: lena
+    title: Run it twice, get the same table
+    difficulty: 2
+    prompt: |
+      The nightly price load **appends**, so every retry doubles a day's rows. Write
+      `upsert(existing, batch)` keyed on `(ticker, date)`:
+
+      - rows in `batch` replace matching rows in `existing` (corrections win),
+      - new keys are added,
+      - if `batch` itself contains a key twice, the **last** occurrence wins,
+      - the result is sorted by `ticker`, `date`, with the same columns as `existing`.
+
+      Running `upsert(upsert(t, b), b)` must equal `upsert(t, b)`.
+
+      *Lena: if I can't safely re-run your job at 3 a.m., it isn't done.*
+    starter_code: |
+      import polars as pl
+
+
+      def upsert(existing: pl.DataFrame, batch: pl.DataFrame) -> pl.DataFrame:
+          return pl.concat([existing, batch]).sort("ticker", "date")
+    visible_tests: |
+      import polars as pl
+
+      from solution import upsert
+
+
+      def test_adds_new_rows():
+          t = pl.DataFrame({"ticker": ["A"], "date": [1], "close": [10.0]})
+          b = pl.DataFrame({"ticker": ["A"], "date": [2], "close": [11.0]})
+          assert upsert(t, b).height == 2
+    hidden_tests: |
+      import polars as pl
+
+      from solution import upsert
+
+      T = pl.DataFrame({"ticker": ["A", "A", "B"], "date": [1, 2, 1], "close": [10.0, 11.0, 50.0]})
+      B = pl.DataFrame(
+          {"ticker": ["A", "C", "C"], "date": [2, 1, 1], "close": [11.5, 7.0, 7.25]}
+      )
+
+
+      def test_corrections_win_and_new_keys_added():
+          out = upsert(T, B)
+          assert out.to_dicts() == [
+              {"ticker": "A", "date": 1, "close": 10.0},
+              {"ticker": "A", "date": 2, "close": 11.5},
+              {"ticker": "B", "date": 1, "close": 50.0},
+              {"ticker": "C", "date": 1, "close": 7.25},
+          ]
+
+
+      def test_idempotent():
+          once = upsert(T, B)
+          assert upsert(once, B).equals(once)
+
+
+      def test_keeps_columns():
+          assert upsert(T, B).columns == ["ticker", "date", "close"]
+    solution: |
+      import polars as pl
+
+
+      def upsert(existing: pl.DataFrame, batch: pl.DataFrame) -> pl.DataFrame:
+          keys = ["ticker", "date"]
+          # Inside the batch the last row per key wins; maintain_order keeps that deterministic.
+          latest = batch.unique(subset=keys, keep="last", maintain_order=True)
+          # Anti join = rows of `existing` with no match in `latest` (SQL: WHERE NOT EXISTS).
+          kept = existing.join(latest, on=keys, how="anti")
+          return pl.concat([kept, latest.select(existing.columns)]).sort(keys)
+
+  - slug: quiz-idempotent-strategies
+    type: quiz
+    persona: lena
+    title: Which load is idempotent?
+    difficulty: 1
+    prompt: |
+      Each strategy loads one day of prices. Which one is **not** safe to re-run?
+    choices:
+      - "`INSERT ... ON CONFLICT (ticker, date) DO UPDATE`"
+      - "`DELETE WHERE date = :day` then `INSERT` the day, in one transaction"
+      - Overwrite the Parquet partition `date=2025-01-02/` with the new file
+      - "`INSERT INTO prices SELECT * FROM staging`"
+    answer: 3
+    explanation: |
+      A plain INSERT appends, so every retry duplicates the day. Upsert, delete-then-insert
+      in a transaction, and partition overwrite all converge on the same final state however
+      many times they run. That property is what makes retries and backfills safe.

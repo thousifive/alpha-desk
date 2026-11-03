@@ -4,5 +4,141 @@ description: Pandera or Pydantic contracts at pipeline boundaries.
 order: 5
 prerequisites:
 - missing-late-data
-xp_reward: 50
-exercises: []
+xp_reward: 60
+exercises:
+  - slug: pydantic-price-contract
+    type: python
+    packages: [pydantic]
+    persona: lena
+    title: A contract for the vendor feed
+    difficulty: 2
+    prompt: |
+      The vendor feed sometimes sends `high < low`, negative volume, or a close of `0`. Write
+      the contract and a splitter:
+
+      1. `PriceRow` (Pydantic v2): `ticker: str`, `date: datetime.date`, `open`, `high`,
+         `low`, `close` (all `> 0`), `volume: int` (`>= 0`), and a model-level rule that
+         `low <= open, close <= high`.
+      2. `split_rows(rows)` takes raw dicts and returns `(good, bad)`: `good` is a list of
+         `PriceRow`, `bad` a list of `(index, error_message)` for rows that failed. One bad
+         row must **not** stop the rest from loading.
+
+      *Lena: quarantine bad rows with a reason. Don't drop them silently and don't crash
+      the whole load.*
+    starter_code: |
+      import datetime
+
+      from pydantic import BaseModel
+
+
+      class PriceRow(BaseModel):
+          ticker: str
+          date: datetime.date
+          open: float
+          high: float
+          low: float
+          close: float
+          volume: int
+
+
+      def split_rows(rows: list[dict]) -> tuple[list[PriceRow], list[tuple[int, str]]]:
+          return [PriceRow(**r) for r in rows], []
+    visible_tests: |
+      from solution import split_rows
+
+
+      def test_one_good_row():
+          row = {"ticker": "AURX", "date": "2025-01-02", "open": 10, "high": 11,
+                 "low": 9.5, "close": 10.5, "volume": 1000}
+          good, bad = split_rows([row])
+          assert len(good) == 1 and bad == []
+    hidden_tests: |
+      import datetime
+
+      from solution import PriceRow, split_rows
+
+      OK = {"ticker": "AURX", "date": "2025-01-02", "open": 10, "high": 11,
+            "low": 9.5, "close": 10.5, "volume": 1000}
+
+
+      def test_parses_types():
+          good, _ = split_rows([OK])
+          assert good[0].date == datetime.date(2025, 1, 2)
+          assert isinstance(good[0], PriceRow)
+
+
+      def test_bad_rows_are_quarantined_with_index():
+          rows = [
+              OK,
+              {**OK, "high": 9.0},  # high < low
+              {**OK, "volume": -5},
+              {**OK, "close": 0},
+              {**OK, "close": 12.0},  # close above high
+              {**OK, "ticker": "BLNK"},
+          ]
+          good, bad = split_rows(rows)
+          assert [g.ticker for g in good] == ["AURX", "BLNK"]
+          assert [i for i, _ in bad] == [1, 2, 3, 4]
+          assert all(isinstance(msg, str) and msg for _, msg in bad)
+
+
+      def test_missing_field_is_bad_not_a_crash():
+          row = dict(OK)
+          del row["close"]
+          good, bad = split_rows([row])
+          assert good == [] and bad[0][0] == 0
+    solution: |
+      import datetime
+      from typing import Annotated
+
+      from pydantic import BaseModel, Field, ValidationError, model_validator
+
+      Positive = Annotated[float, Field(gt=0)]
+
+
+      class PriceRow(BaseModel):
+          ticker: str
+          date: datetime.date
+          open: Positive
+          high: Positive
+          low: Positive
+          close: Positive
+          volume: Annotated[int, Field(ge=0)]
+
+          # mode="after" runs once the fields are parsed, so it can compare them.
+          @model_validator(mode="after")
+          def _range(self) -> "PriceRow":
+              if not (self.low <= min(self.open, self.close) and max(self.open, self.close) <= self.high):
+                  raise ValueError("expected low <= open, close <= high")
+              return self
+
+
+      def split_rows(rows: list[dict]) -> tuple[list[PriceRow], list[tuple[int, str]]]:
+          good: list[PriceRow] = []
+          bad: list[tuple[int, str]] = []
+          for i, raw in enumerate(rows):
+              try:
+                  good.append(PriceRow.model_validate(raw))
+              except ValidationError as e:
+                  bad.append((i, str(e)))
+          return good, bad
+
+  - slug: quiz-where-to-validate
+    type: quiz
+    persona: lena
+    title: Where does validation belong?
+    difficulty: 1
+    prompt: |
+      Pipeline: vendor API → raw Parquet → cleaning → DuckDB tables → FastAPI → dashboard.
+      Where do strict schema checks pay off most?
+    choices:
+      - Only in the dashboard, where users see the data.
+      - At the boundaries, where data enters (vendor → raw) and where it's published (→ DuckDB / API), with clear quarantine for failures.
+      - After every single transformation step, even pure internal ones.
+      - Nowhere; Parquet already has a schema.
+    answer: 1
+    explanation: |
+      Validate where **trust changes**: external data coming in, and data you publish to
+      others. A Parquet schema only checks types, not rules like `high >= low`. Checking
+      after every internal step mostly re-proves what typed code already guarantees, and it
+      costs time.

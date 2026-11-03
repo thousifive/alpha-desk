@@ -4,5 +4,97 @@ description: Watermarks and change detection.
 order: 7
 prerequisites:
 - idempotent-loads
-xp_reward: 50
-exercises: []
+xp_reward: 70
+exercises:
+  - slug: incremental-watermark
+    type: python
+    packages: [polars]
+    persona: lena
+    title: Only what changed, plus a safety margin
+    difficulty: 2
+    prompt: |
+      The positions source has an `updated_at` column (int, epoch seconds). Instead of
+      reloading everything, load incrementally:
+
+      `next_increment(source, watermark, lookback)` returns `(rows, new_watermark)`:
+      - `rows`: every row with `updated_at > watermark - lookback`. The lookback re-reads a
+        small overlap to catch late commits; the load downstream is idempotent, so
+        overlap is harmless.
+      - `new_watermark`: the max `updated_at` among `rows`, or the old `watermark` if
+        nothing qualified. It **never moves backwards**.
+
+      *Lena: a watermark that jumps back is a full reload you didn't plan for.*
+    starter_code: |
+      import polars as pl
+
+
+      def next_increment(
+          source: pl.DataFrame, watermark: int, lookback: int
+      ) -> tuple[pl.DataFrame, int]:
+          rows = source.filter(pl.col("updated_at") > watermark)
+          return rows, int(rows["updated_at"].max())
+    visible_tests: |
+      import polars as pl
+
+      from solution import next_increment
+
+
+      def test_first_load():
+          src = pl.DataFrame({"id": [1, 2], "updated_at": [100, 200]})
+          rows, wm = next_increment(src, 0, 0)
+          assert rows.height == 2 and wm == 200
+    hidden_tests: |
+      import polars as pl
+
+      from solution import next_increment
+
+      SRC = pl.DataFrame({"id": [1, 2, 3, 4], "updated_at": [100, 190, 205, 260]})
+
+
+      def test_lookback_rereads_overlap():
+          rows, wm = next_increment(SRC, 200, 15)
+          assert sorted(rows["id"].to_list()) == [2, 3, 4]
+          assert wm == 260
+
+
+      def test_nothing_new_keeps_watermark():
+          rows, wm = next_increment(SRC, 500, 10)
+          assert rows.height == 0 and wm == 500
+
+
+      def test_watermark_never_moves_back():
+          # Only the overlap qualifies, and its max (190) is below the old watermark (195).
+          rows, wm = next_increment(SRC.filter(pl.col("id") <= 2), 195, 10)
+          assert rows["id"].to_list() == [2]
+          assert wm == 195
+    solution: |
+      import polars as pl
+
+
+      def next_increment(
+          source: pl.DataFrame, watermark: int, lookback: int
+      ) -> tuple[pl.DataFrame, int]:
+          rows = source.filter(pl.col("updated_at") > watermark - lookback)
+          if rows.is_empty():
+              return rows, watermark
+          # max() with the old value: the overlap alone must not drag the watermark back.
+          return rows, max(watermark, int(rows["updated_at"].max()))
+
+  - slug: quiz-cdc-deletes
+    type: quiz
+    persona: marcus
+    title: The row that disappeared
+    difficulty: 2
+    prompt: |
+      Your incremental load filters on `updated_at > watermark`. A position is **deleted**
+      from the source system. What happens in your warehouse copy?
+    choices:
+      - It's deleted too, because the watermark notices the gap.
+      - Nothing. A deleted row has no new updated_at to pick up, so the copy keeps it until you add soft deletes, change-data-capture, or a periodic full reconciliation.
+      - The load fails with a foreign-key error.
+      - The watermark resets to zero.
+    answer: 1
+    explanation: |
+      Timestamp-based increments only see rows that still exist and changed. Deletes need a
+      signal: a soft-delete flag (`deleted_at`), a CDC stream from the database log, or a
+      periodic full compare. It's a classic interview question for pipeline roles.

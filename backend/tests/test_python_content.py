@@ -13,6 +13,9 @@ from app.content.schema import PythonExercise
 from app.grading.python import declared_test_names
 from app.pyrunner.harness import run_tests
 
+# Polars notes it can't verify sortedness when join_asof uses `by=` groups; the exercise sorts.
+pytestmark = pytest.mark.filterwarnings("ignore:Sortedness of columns cannot be checked")
+
 BUNDLE = load_content(get_settings().content_dir)
 PY_EXERCISES = [
     ex

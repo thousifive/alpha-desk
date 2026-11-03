@@ -4,5 +4,131 @@ description: Cron, orchestration, retries, and backfills.
 order: 8
 prerequisites:
 - incremental-loads
-xp_reward: 50
-exercises: []
+xp_reward: 70
+exercises:
+  - slug: retry-with-backoff
+    type: python
+    persona: lena
+    title: Retry the flaky vendor, politely
+    difficulty: 2
+    prompt: |
+      The vendor API fails ~5% of calls with `TransientError`. Write
+      `with_retries(fn, *, attempts, base_delay, sleep=time.sleep)`:
+
+      - call `fn()`; return its result as soon as it succeeds,
+      - on `TransientError`, wait `base_delay * 2**i` seconds (1×, 2×, 4×, …) via `sleep`
+        and try again, up to `attempts` calls in total,
+      - if every attempt fails, re-raise the **last** `TransientError`,
+      - **any other exception** propagates immediately (a 401 won't fix itself).
+
+      `sleep` is injectable so tests don't actually wait.
+
+      *Lena: retry the things that can succeed next time. Fail fast on the rest.*
+    starter_code: |
+      import time
+
+
+      class TransientError(Exception):
+          pass
+
+
+      def with_retries(fn, *, attempts, base_delay, sleep=time.sleep):
+          for _ in range(attempts):
+              try:
+                  return fn()
+              except Exception:
+                  sleep(base_delay)
+    visible_tests: |
+      from solution import with_retries
+
+
+      def test_success_first_try():
+          assert with_retries(lambda: 42, attempts=3, base_delay=1, sleep=lambda s: None) == 42
+    hidden_tests: |
+      from solution import TransientError, with_retries
+
+
+      class Flaky:
+          def __init__(self, failures, exc=TransientError):
+              self.failures, self.exc, self.calls = failures, exc, 0
+
+          def __call__(self):
+              self.calls += 1
+              if self.calls <= self.failures:
+                  raise self.exc(f"fail {self.calls}")
+              return "ok"
+
+
+      def test_exponential_backoff_then_success():
+          waits = []
+          fn = Flaky(failures=2)
+          assert with_retries(fn, attempts=5, base_delay=0.5, sleep=waits.append) == "ok"
+          assert fn.calls == 3
+          assert waits == [0.5, 1.0]
+
+
+      def test_gives_up_and_reraises_last_error():
+          waits = []
+          fn = Flaky(failures=10)
+          try:
+              with_retries(fn, attempts=3, base_delay=1, sleep=waits.append)
+          except TransientError as e:
+              assert str(e) == "fail 3"
+              assert fn.calls == 3
+              assert waits == [1, 2]  # no sleep after the final attempt
+              return
+          raise AssertionError("expected TransientError")
+
+
+      def test_other_errors_are_not_retried():
+          fn = Flaky(failures=1, exc=PermissionError)
+          try:
+              with_retries(fn, attempts=3, base_delay=1, sleep=lambda s: None)
+          except PermissionError:
+              assert fn.calls == 1
+              return
+          raise AssertionError("expected PermissionError")
+    solution: |
+      import time
+      from collections.abc import Callable
+
+
+      class TransientError(Exception):
+          pass
+
+
+      def with_retries[T](
+          fn: Callable[[], T],
+          *,
+          attempts: int,
+          base_delay: float,
+          sleep: Callable[[float], None] = time.sleep,
+      ) -> T:
+          for i in range(attempts):
+              try:
+                  return fn()
+              except TransientError:
+                  if i == attempts - 1:
+                      raise  # bare raise re-raises the current exception, traceback intact
+                  sleep(base_delay * 2**i)
+          raise ValueError("attempts must be >= 1")
+
+  - slug: quiz-backfill
+    type: quiz
+    persona: marcus
+    title: Backfilling a new column
+    difficulty: 2
+    prompt: |
+      You add a `vwap` column to the daily job and need it for the last **3 years**. The job
+      is idempotent and takes a `--date` argument. What's the sane way to backfill?
+    choices:
+      - Change the job to load 3 years in one run and hope it fits in memory.
+      - Run the same daily job for each past date (in parallel batches, oldest first), so backfill and nightly runs share one code path.
+      - Write a separate one-off SQL script and run it once by hand.
+      - Only compute vwap going forward; history doesn't matter.
+    answer: 1
+    explanation: |
+      If the daily job is **parameterized by date and idempotent**, a backfill is just
+      "run it for these dates", which orchestrators (Airflow, Dagster, Prefect) do natively.
+      One code path means the backfilled history is computed exactly like future days.
+      One-off scripts drift from the real logic.
