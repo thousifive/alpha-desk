@@ -5,4 +5,174 @@ order: 2
 prerequisites:
 - py-typing
 xp_reward: 50
-exercises: []
+exercises:
+  - slug: py-frozen-trade
+    type: python
+    persona: lena
+    title: Trades must not mutate
+    difficulty: 1
+    prompt: |
+      Someone "fixed" a fill price by doing `trade.px = 101.5` after booking. Make `Trade`
+      **immutable and hashable**, so the same trade can be deduplicated in a `set`.
+
+      Keep the fields `ticker: str`, `qty: int`, `px: float`, and add a read-only
+      `notional` property (`qty × px`).
+
+      *Lena: if a value object can change after you've used it as a dict key, you get bugs
+      nobody can reproduce.*
+    starter_code: |
+      from dataclasses import dataclass
+
+
+      @dataclass
+      class Trade:
+          ticker: str
+          qty: int
+          px: float
+    visible_tests: |
+      from solution import Trade
+
+
+      def test_fields():
+          t = Trade("AURX", 10, 5.0)
+          assert (t.ticker, t.qty, t.px) == ("AURX", 10, 5.0)
+    hidden_tests: |
+      import dataclasses
+
+      from solution import Trade
+
+
+      def test_cannot_mutate():
+          t = Trade("AURX", 10, 5.0)
+          try:
+              t.px = 6.0
+          except dataclasses.FrozenInstanceError:
+              return
+          raise AssertionError("assigning to a field should raise FrozenInstanceError")
+
+
+      def test_dedupes_in_a_set():
+          fills = {Trade("AURX", 10, 5.0), Trade("AURX", 10, 5.0), Trade("BLNK", -3, 2.0)}
+          assert len(fills) == 2
+
+
+      def test_notional():
+          assert Trade("BLNK", -3, 2.5).notional == -7.5
+    solution: |
+      from dataclasses import dataclass
+
+
+      # frozen=True blocks assignment and, together with eq=True (the default), generates
+      # __hash__, so equal trades hash equally and dedupe in sets.
+      @dataclass(frozen=True)
+      class Trade:
+          ticker: str
+          qty: int
+          px: float
+
+          @property
+          def notional(self) -> float:
+              return self.qty * self.px
+
+  - slug: py-pydantic-order
+    type: python
+    persona: priya
+    packages: [pydantic]
+    title: Reject bad orders at the door
+    difficulty: 2
+    prompt: |
+      An order came in for `qty: 0` of ticker `"aurx "` and it reached the broker. Add
+      validation to `OrderRequest` (Pydantic v2):
+
+      - `ticker`: strip whitespace and uppercase it, then require 1-5 letters `A-Z`.
+      - `side`: only `"buy"` or `"sell"`.
+      - `qty`: a positive int. `"10"` from JSON should still coerce to `10`.
+      - `limit_px`: optional; if given it must be `> 0`.
+
+      Invalid input must raise `pydantic.ValidationError`.
+
+      *Priya: I don't care how. I care that I never see a zero-share order again.*
+    starter_code: |
+      from pydantic import BaseModel
+
+
+      class OrderRequest(BaseModel):
+          ticker: str
+          side: str
+          qty: int
+          limit_px: float | None = None
+    visible_tests: |
+      from solution import OrderRequest
+
+
+      def test_valid_order():
+          o = OrderRequest(ticker="AURX", side="buy", qty=100)
+          assert o.qty == 100 and o.limit_px is None
+    hidden_tests: |
+      from pydantic import ValidationError
+
+      from solution import OrderRequest
+
+
+      def _rejects(**kw):
+          try:
+              OrderRequest(**kw)
+          except ValidationError:
+              return True
+          return False
+
+
+      def test_normalizes_ticker_and_coerces_qty():
+          o = OrderRequest(ticker=" aurx ", side="sell", qty="10", limit_px=12.5)
+          assert (o.ticker, o.qty, o.limit_px) == ("AURX", 10, 12.5)
+
+
+      def test_rejects_zero_and_negative_qty():
+          assert _rejects(ticker="AURX", side="buy", qty=0)
+          assert _rejects(ticker="AURX", side="buy", qty=-5)
+
+
+      def test_rejects_bad_side_and_ticker():
+          assert _rejects(ticker="AURX", side="hold", qty=1)
+          assert _rejects(ticker="TOOLONG", side="buy", qty=1)
+          assert _rejects(ticker="AU1X", side="buy", qty=1)
+
+
+      def test_rejects_non_positive_limit():
+          assert _rejects(ticker="AURX", side="buy", qty=1, limit_px=0)
+    solution: |
+      from typing import Annotated, Literal
+
+      from pydantic import BaseModel, Field, field_validator
+
+
+      class OrderRequest(BaseModel):
+          ticker: Annotated[str, Field(pattern=r"^[A-Z]{1,5}$")]
+          side: Literal["buy", "sell"]
+          qty: Annotated[int, Field(gt=0)]
+          limit_px: Annotated[float, Field(gt=0)] | None = None
+
+          # mode="before" runs on the raw input, before the pattern check sees it.
+          @field_validator("ticker", mode="before")
+          @classmethod
+          def _normalize(cls, v: object) -> object:
+              return v.strip().upper() if isinstance(v, str) else v
+
+  - slug: quiz-dataclass-or-pydantic
+    type: quiz
+    persona: lena
+    title: Dataclass or Pydantic?
+    difficulty: 1
+    prompt: |
+      You're modelling an internal `PnLRow` that's built only by our own aggregation code
+      (already typed and tested) and created ~2 million times per backtest. Which fits best?
+    choices:
+      - Pydantic BaseModel, because every object should be validated.
+      - A frozen dataclass with slots=True, because the data is already trusted and it's cheap to build.
+      - A plain dict, because classes are slow in Python.
+      - A TypedDict, because it validates field types at runtime.
+    answer: 1
+    explanation: |
+      Validate at the **boundaries** (HTTP bodies, files, vendor feeds) with Pydantic. Inside
+      the system, where data is already typed, a dataclass is lighter and faster;
+      `slots=True` also cuts memory per object. TypedDict does no runtime validation at all.

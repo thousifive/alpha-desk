@@ -70,3 +70,111 @@ exercises:
       async def fetch_many(tickers: list[str]) -> list[dict[str, object]]:
           # gather schedules all coroutines at once and returns results in input order.
           return list(await asyncio.gather(*(fetch_quote(t) for t in tickers)))
+
+  - slug: py-async-timeouts
+    type: python
+    persona: marcus
+    title: One slow vendor shouldn't stall the screen
+    difficulty: 2
+    prompt: |
+      `fetch_all(tickers, fetch, timeout_s)` pulls prices from a vendor. Right now it's
+      sequential, and one hung ticker blocks everything.
+
+      Make it **concurrent**, and give each ticker its own timeout: a ticker that doesn't
+      answer within `timeout_s` maps to `None`. The others still return their price.
+      Return a dict `ticker → price | None`.
+
+      `fetch` is an `async def fetch(ticker) -> float` passed in by the caller.
+
+      *Marcus: I'd rather see a blank cell for QBTX than a frozen screen.*
+    starter_code: |
+      from collections.abc import Awaitable, Callable
+
+
+      async def fetch_all(
+          tickers: list[str],
+          fetch: Callable[[str], Awaitable[float]],
+          timeout_s: float,
+      ) -> dict[str, float | None]:
+          out: dict[str, float | None] = {}
+          for t in tickers:
+              out[t] = await fetch(t)
+          return out
+    visible_tests: |
+      from solution import fetch_all
+
+
+      async def instant(ticker):
+          return 1.0
+
+
+      async def test_all_fast():
+          assert await fetch_all(["AURX", "BLNK"], instant, 1.0) == {"AURX": 1.0, "BLNK": 1.0}
+    hidden_tests: |
+      import asyncio
+      import time
+
+      from solution import fetch_all
+
+      DELAYS = {"AURX": 0.05, "BLNK": 0.1, "QBTX": 1.0}
+
+
+      async def vendor(ticker):
+          await asyncio.sleep(DELAYS[ticker])
+          return {"AURX": 10.0, "BLNK": 20.0, "QBTX": 30.0}[ticker]
+
+
+      async def test_slow_ticker_becomes_none():
+          got = await fetch_all(["AURX", "BLNK", "QBTX"], vendor, 0.3)
+          assert got == {"AURX": 10.0, "BLNK": 20.0, "QBTX": None}
+
+
+      async def test_runs_concurrently():
+          start = time.perf_counter()
+          await fetch_all(["AURX", "BLNK", "QBTX"], vendor, 0.3)
+          elapsed = time.perf_counter() - start
+          assert elapsed < 0.6, f"took {elapsed:.2f}s"
+
+
+      async def test_keeps_input_order():
+          got = await fetch_all(["BLNK", "AURX"], vendor, 1.0)
+          assert list(got) == ["BLNK", "AURX"]
+    solution: |
+      import asyncio
+      from collections.abc import Awaitable, Callable
+
+
+      async def fetch_all(
+          tickers: list[str],
+          fetch: Callable[[str], Awaitable[float]],
+          timeout_s: float,
+      ) -> dict[str, float | None]:
+          async def one(t: str) -> float | None:
+              try:
+                  # wait_for cancels the inner coroutine when time runs out.
+                  return await asyncio.wait_for(fetch(t), timeout_s)
+              except TimeoutError:  # asyncio.TimeoutError is an alias since 3.11
+                  return None
+
+          prices = await asyncio.gather(*(one(t) for t in tickers))
+          return dict(zip(tickers, prices, strict=True))
+
+  - slug: quiz-async-blocking
+    type: quiz
+    persona: lena
+    title: Which line stalls the event loop?
+    difficulty: 1
+    prompt: |
+      Inside an `async def` FastAPI endpoint, which of these **blocks every other request**
+      while it runs?
+    choices:
+      - "`await asyncio.sleep(1)`"
+      - "`requests.get(vendor_url)`"
+      - "`await httpx_async_client.get(vendor_url)`"
+      - "`await asyncio.to_thread(parse_big_file, path)`"
+    answer: 1
+    explanation: |
+      `requests` is synchronous: the thread waits on the socket and the event loop can't run
+      anything else meanwhile. The `await`ed calls yield control while they wait, and
+      `asyncio.to_thread` moves blocking work onto a worker thread. In FastAPI, a plain `def`
+      endpoint (not `async def`) is also safe, because FastAPI runs it in a threadpool.

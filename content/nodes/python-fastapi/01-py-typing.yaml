@@ -4,4 +4,169 @@ description: 'Typing beyond the basics: generics, Protocol, TypedDict.'
 order: 1
 prerequisites: []
 xp_reward: 50
-exercises: []
+exercises:
+  - slug: py-typed-position
+    type: python
+    persona: lena
+    title: Type the position payload
+    difficulty: 1
+    prompt: |
+      The risk service sends positions as plain dicts and half our bugs are `KeyError: 'qty'`.
+
+      1. Define `Position` as a **`TypedDict`** with `ticker: str`, `qty: int` (negative =
+         short) and `px: float`.
+      2. Fix `gross_exposure(positions)`. Gross exposure is the sum of **absolute** position
+         values, `|qty × px|`, so shorts add to it instead of cancelling longs.
+
+      *Lena: a TypedDict costs nothing at runtime. It's still a dict, but mypy and your
+      editor now know its keys.*
+    starter_code: |
+      Position = dict
+
+
+      def gross_exposure(positions: list[Position]) -> float:
+          return sum(p["qty"] * p["px"] for p in positions)
+    visible_tests: |
+      from solution import gross_exposure
+
+
+      def test_long_only():
+          assert gross_exposure([{"ticker": "AURX", "qty": 10, "px": 5.0}]) == 50.0
+    hidden_tests: |
+      import typing
+
+      from solution import Position, gross_exposure
+
+
+      def test_position_is_a_typeddict():
+          assert typing.is_typeddict(Position)
+          assert typing.get_type_hints(Position) == {"ticker": str, "qty": int, "px": float}
+
+
+      def test_shorts_add_to_gross():
+          book = [
+              {"ticker": "AURX", "qty": 100, "px": 10.0},
+              {"ticker": "BLNK", "qty": -50, "px": 20.0},
+          ]
+          assert gross_exposure(book) == 2000.0
+
+
+      def test_empty_book():
+          assert gross_exposure([]) == 0
+    solution: |
+      from typing import TypedDict
+
+
+      class Position(TypedDict):
+          ticker: str
+          qty: int  # negative = short
+          px: float
+
+
+      def gross_exposure(positions: list[Position]) -> float:
+          return sum(abs(p["qty"] * p["px"]) for p in positions)
+
+  - slug: py-protocol-pricer
+    type: python
+    persona: lena
+    title: Duck-typed price sources
+    difficulty: 2
+    prompt: |
+      We have three price feeds (vendor, internal marks, a test fake) and none of them share
+      a base class. `mark_to_market` should accept **anything with a
+      `price(ticker: str) -> float` method**.
+
+      1. Make `PriceSource` a `typing.Protocol` that also works with `isinstance()` at
+         runtime (hint: there's a decorator for that).
+      2. `mark_to_market(book, source)` returns `Σ qty × source.price(ticker)` over the
+         `book` dict (`ticker → qty`). If `source` isn't a `PriceSource`, raise `TypeError`.
+
+      *Lena: Protocols are structural typing, like a TypeScript interface. No inheritance.*
+    starter_code: |
+      from typing import Protocol
+
+
+      class PriceSource(Protocol):
+          def price(self, ticker: str) -> float: ...
+
+
+      def mark_to_market(book: dict[str, int], source: PriceSource) -> float:
+          return sum(qty * source.price(t) for t, qty in book.items())
+    visible_tests: |
+      from solution import mark_to_market
+
+
+      class Flat:
+          def price(self, ticker):
+              return 2.0
+
+
+      def test_flat_marks():
+          assert mark_to_market({"AURX": 10, "BLNK": -5}, Flat()) == 10.0
+    hidden_tests: |
+      from solution import PriceSource, mark_to_market
+
+
+      class VendorFeed:
+          def __init__(self, prices):
+              self._p = prices
+
+          def price(self, ticker):
+              return self._p[ticker]
+
+
+      def test_structural_isinstance():
+          assert isinstance(VendorFeed({}), PriceSource)
+          assert not isinstance(object(), PriceSource)
+
+
+      def test_marks_long_and_short():
+          feed = VendorFeed({"AURX": 12.5, "CVTA": 40.0})
+          assert mark_to_market({"AURX": 100, "CVTA": -10}, feed) == 850.0
+
+
+      def test_rejects_non_source():
+          try:
+              mark_to_market({"AURX": 1}, {"AURX": 1.0})
+          except TypeError:
+              return
+          raise AssertionError("expected TypeError for a dict passed as the source")
+    solution: |
+      from typing import Protocol, runtime_checkable
+
+
+      @runtime_checkable  # lets isinstance() check for the method's presence at runtime
+      class PriceSource(Protocol):
+          def price(self, ticker: str) -> float: ...
+
+
+      def mark_to_market(book: dict[str, int], source: PriceSource) -> float:
+          if not isinstance(source, PriceSource):
+              raise TypeError(f"{type(source).__name__} has no price() method")
+          return sum(qty * source.price(t) for t, qty in book.items())
+
+  - slug: quiz-py-generics
+    type: quiz
+    persona: lena
+    title: Why bother with generics?
+    difficulty: 1
+    prompt: |
+      Code review comment on your helper:
+
+      ```python
+      def first[T](xs: list[T]) -> T:
+          return xs[0]
+      ```
+
+      *"Why not just `def first(xs: list) -> object`?"* What's the best reply?
+    choices:
+      - Generics make the function run faster because Python specializes it per type.
+      - The checker links input and output types, so `first(["AURX"])` is known to be a `str`.
+      - Without generics, Python raises a TypeError when the list holds mixed types.
+      - "`T` restricts the function to lists of a single built-in type."
+    answer: 1
+    explanation: |
+      Type hints don't change runtime behaviour at all. A type variable ties the return type
+      to the argument type, so callers keep precise types (`str` in, `str` out) instead of
+      getting `object` and needing casts. `def f[T](...)` is the Python 3.12 syntax, the same
+      idea as `function f<T>(xs: T[]): T` in TypeScript.

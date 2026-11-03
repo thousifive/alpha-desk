@@ -5,4 +5,245 @@ order: 5
 prerequisites:
 - fastapi-routing
 xp_reward: 50
-exercises: []
+exercises:
+  - slug: fastapi-depends-repo
+    type: python
+    persona: lena
+    packages: [fastapi, httpx]
+    title: Make the repo swappable
+    difficulty: 2
+    prompt: |
+      `GET /exposure/{ticker}` reads straight from a module-level `REPO`, so tests can't
+      swap in a fake and keep hitting the "real" one.
+
+      Refactor so the route gets its repository through **`Depends(get_repo)`**. The
+      hidden tests replace it with `app.dependency_overrides[get_repo] = ...` and expect
+      the fake's data to come back.
+
+      Keep the response shape: `{"ticker": "AURX", "net": 1500.0}`.
+
+      *Lena: if a test needs `monkeypatch` to reach into a module global, the design is
+      telling you something.*
+    starter_code: |
+      from fastapi import FastAPI
+
+
+      class PositionRepo:
+          def net_exposure(self, ticker: str) -> float:
+              return {"AURX": 1500.0, "BLNK": -400.0}.get(ticker, 0.0)
+
+
+      REPO = PositionRepo()
+      app = FastAPI()
+
+
+      def get_repo() -> PositionRepo:
+          return REPO
+
+
+      @app.get("/exposure/{ticker}")
+      async def exposure(ticker: str):
+          return {"ticker": ticker, "net": REPO.net_exposure(ticker)}
+    visible_tests: |
+      import httpx
+
+      from solution import app
+
+
+      async def test_real_repo():
+          transport = httpx.ASGITransport(app=app)
+          async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+              r = await c.get("/exposure/AURX")
+          assert r.json() == {"ticker": "AURX", "net": 1500.0}
+    hidden_tests: |
+      import httpx
+
+      from solution import app, get_repo
+
+
+      class FakeRepo:
+          def net_exposure(self, ticker):
+              return 42.0
+
+
+      async def test_override_is_used():
+          app.dependency_overrides[get_repo] = FakeRepo
+          try:
+              transport = httpx.ASGITransport(app=app)
+              async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+                  r = await c.get("/exposure/ZZZ")
+          finally:
+              app.dependency_overrides.clear()
+          assert r.json() == {"ticker": "ZZZ", "net": 42.0}
+
+
+      async def test_default_still_works():
+          transport = httpx.ASGITransport(app=app)
+          async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+              r = await c.get("/exposure/BLNK")
+          assert r.json() == {"ticker": "BLNK", "net": -400.0}
+    solution: |
+      from typing import Annotated
+
+      from fastapi import Depends, FastAPI
+
+
+      class PositionRepo:
+          def net_exposure(self, ticker: str) -> float:
+              return {"AURX": 1500.0, "BLNK": -400.0}.get(ticker, 0.0)
+
+
+      REPO = PositionRepo()
+      app = FastAPI()
+
+
+      def get_repo() -> PositionRepo:
+          return REPO
+
+
+      # Annotated[..., Depends(...)] is resolved per request; overrides swap the provider.
+      RepoDep = Annotated[PositionRepo, Depends(get_repo)]
+
+
+      @app.get("/exposure/{ticker}")
+      async def exposure(ticker: str, repo: RepoDep):
+          return {"ticker": ticker, "net": repo.net_exposure(ticker)}
+
+  - slug: fastapi-yield-session
+    type: python
+    persona: lena
+    packages: [fastapi, httpx]
+    title: Connections leak when the route raises
+    difficulty: 2
+    prompt: |
+      Ops says we run out of DB connections after a burst of 404s. `get_session` opens a
+      `Session` but never closes it.
+
+      Turn `get_session` into a **`yield` dependency** that always closes the session
+      after the request, **even when the route raises `HTTPException`**. Each request gets
+      its own session.
+
+      *Lena: `yield` dependencies are context managers for requests. Setup before the
+      yield, teardown after it.*
+    starter_code: |
+      from fastapi import Depends, FastAPI, HTTPException
+
+
+      class Session:
+          opened: list["Session"] = []
+
+          def __init__(self) -> None:
+              self.closed = False
+              Session.opened.append(self)
+
+          def close(self) -> None:
+              self.closed = True
+
+
+      app = FastAPI()
+
+
+      def get_session() -> Session:
+          return Session()
+
+
+      @app.get("/trades/{trade_id}")
+      async def get_trade(trade_id: int, session: Session = Depends(get_session)):
+          if trade_id != 1:
+              raise HTTPException(status_code=404, detail="no such trade")
+          return {"id": 1, "ticker": "AURX"}
+    visible_tests: |
+      import httpx
+
+      from solution import app
+
+
+      async def test_found():
+          transport = httpx.ASGITransport(app=app)
+          async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+              assert (await c.get("/trades/1")).status_code == 200
+    hidden_tests: |
+      import httpx
+
+      from solution import Session, app
+
+
+      def client():
+          return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+
+
+      async def test_closed_after_success():
+          Session.opened.clear()
+          async with client() as c:
+              await c.get("/trades/1")
+          assert len(Session.opened) == 1 and Session.opened[0].closed
+
+
+      async def test_closed_after_404():
+          Session.opened.clear()
+          async with client() as c:
+              r = await c.get("/trades/99")
+          assert r.status_code == 404
+          assert all(s.closed for s in Session.opened) and Session.opened
+
+
+      async def test_one_session_per_request():
+          Session.opened.clear()
+          async with client() as c:
+              await c.get("/trades/1")
+              await c.get("/trades/1")
+          assert len(Session.opened) == 2
+    solution: |
+      from collections.abc import Iterator
+
+      from fastapi import Depends, FastAPI, HTTPException
+
+
+      class Session:
+          opened: list["Session"] = []
+
+          def __init__(self) -> None:
+              self.closed = False
+              Session.opened.append(self)
+
+          def close(self) -> None:
+              self.closed = True
+
+
+      app = FastAPI()
+
+
+      def get_session() -> Iterator[Session]:
+          session = Session()
+          try:
+              yield session  # the route runs here
+          finally:
+              session.close()  # runs on success *and* when the route raised
+
+
+      @app.get("/trades/{trade_id}")
+      async def get_trade(trade_id: int, session: Session = Depends(get_session)):
+          if trade_id != 1:
+              raise HTTPException(status_code=404, detail="no such trade")
+          return {"id": 1, "ticker": "AURX"}
+
+  - slug: quiz-depends-caching
+    type: quiz
+    persona: lena
+    title: How many sessions?
+    difficulty: 2
+    prompt: |
+      Within **one request**, the route depends on `get_session` directly, and also on
+      `get_repo`, which itself depends on `get_session`. With default settings, how many
+      times does `get_session` run?
+    choices:
+      - Twice, once per place it's declared.
+      - Once. FastAPI caches a dependency's result for the duration of a request.
+      - Once per application lifetime, like a singleton.
+      - It depends on whether the route is async.
+    answer: 1
+    explanation: |
+      Dependencies are cached **per request** by default, so the route and the repo share the
+      same session (usually what you want for a transaction). Pass `Depends(dep,
+      use_cache=False)` to force a fresh call. Nothing is cached across requests unless you
+      do it yourself, e.g. with `functools.lru_cache` on a settings getter.

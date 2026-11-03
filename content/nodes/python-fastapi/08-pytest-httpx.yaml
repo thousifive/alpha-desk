@@ -4,5 +4,192 @@ description: Fixtures, parametrize, and ASGI test clients.
 order: 8
 prerequisites:
 - fastapi-errors
-xp_reward: 50
-exercises: []
+xp_reward: 60
+exercises:
+  - slug: pytest-catch-the-mutants
+    type: python
+    persona: lena
+    title: Tests that actually catch bugs
+    difficulty: 2
+    prompt: |
+      Write the test, not the code. `check_max_drawdown(max_drawdown)` receives an
+      implementation of max drawdown and must **raise `AssertionError`** if it's wrong.
+
+      Max drawdown of a price series is the largest peak-to-trough fall, as a **positive
+      fraction**: `[100, 120, 90, 130]` → `(120 - 90) / 120 = 0.25`. A series that only
+      rises (or has fewer than 2 points) has drawdown `0.0`.
+
+      The hidden tests run your check against the correct implementation (must pass) and
+      against three plausible bugs (each must fail). Think about edge cases.
+
+      *Lena: a test that passes for broken code is worse than no test. It's false confidence.*
+    starter_code: |
+      def check_max_drawdown(max_drawdown) -> None:
+          assert max_drawdown([100, 120, 90, 130]) >= 0
+    visible_tests: |
+      from solution import check_max_drawdown
+
+
+      def correct(prices):
+          peak, worst = float("-inf"), 0.0
+          for p in prices:
+              peak = max(peak, p)
+              worst = max(worst, (peak - p) / peak)
+          return worst
+
+
+      def test_correct_implementation_passes():
+          check_max_drawdown(correct)
+    hidden_tests: |
+      from solution import check_max_drawdown
+
+
+      def correct(prices):
+          peak, worst = float("-inf"), 0.0
+          for p in prices:
+              peak = max(peak, p)
+              worst = max(worst, (peak - p) / peak)
+          return worst
+
+
+      def first_vs_min(prices):  # bug: compares against the first price, not the running peak
+          if len(prices) < 2:
+              return 0.0
+          return max(0.0, (prices[0] - min(prices)) / prices[0])
+
+
+      def global_max_min(prices):  # bug: ignores order (trough may come before the peak)
+          if len(prices) < 2:
+              return 0.0
+          return (max(prices) - min(prices)) / max(prices)
+
+
+      def absolute_not_fraction(prices):  # bug: returns price points, not a fraction
+          peak, worst = float("-inf"), 0.0
+          for p in prices:
+              peak = max(peak, p)
+              worst = max(worst, peak - p)
+          return worst
+
+
+      def _catches(impl):
+          try:
+              check_max_drawdown(impl)
+          except AssertionError:
+              return True
+          return False
+
+
+      def test_correct_passes():
+          check_max_drawdown(correct)
+
+
+      def test_catches_first_vs_min():
+          assert _catches(first_vs_min)
+
+
+      def test_catches_order_blind():
+          assert _catches(global_max_min)
+
+
+      def test_catches_absolute_units():
+          assert _catches(absolute_not_fraction)
+    solution: |
+      import math
+
+
+      def check_max_drawdown(max_drawdown) -> None:
+          close = lambda a, b: math.isclose(a, b, abs_tol=1e-12)  # noqa: E731
+          # The textbook case: peak 120, trough 90.
+          assert close(max_drawdown([100, 120, 90, 130]), 0.25)
+          # The peak comes after the start, so "first price vs min" gets it wrong.
+          assert close(max_drawdown([50, 100, 80]), 0.2)
+          # The low comes *before* the high: no drawdown at all, order matters.
+          assert close(max_drawdown([80, 100]), 0.0)
+          # Edge cases.
+          assert max_drawdown([100]) == 0.0
+          assert max_drawdown([1, 2, 3]) == 0.0
+
+  - slug: pytest-asgi-client
+    type: python
+    persona: lena
+    packages: [fastapi, httpx]
+    title: A test client that never touches the network
+    difficulty: 1
+    prompt: |
+      Write `make_client(app)` that returns an **`httpx.AsyncClient`** wired straight to the
+      ASGI `app` (no server, no port, no network) with `base_url="http://test"`. The hidden
+      tests use it like this:
+
+      ```python
+      async with make_client(app) as c:
+          r = await c.get("/health")
+      ```
+
+      *Lena: in-process ASGI tests are fast enough to run on every save.*
+    starter_code: |
+      import httpx
+
+
+      def make_client(app) -> httpx.AsyncClient:
+          return httpx.AsyncClient(base_url="http://test")
+    visible_tests: |
+      import httpx
+
+      from solution import make_client
+
+
+      def test_returns_async_client():
+          from fastapi import FastAPI
+
+          assert isinstance(make_client(FastAPI()), httpx.AsyncClient)
+    hidden_tests: |
+      from fastapi import FastAPI
+
+      from solution import make_client
+
+      app = FastAPI()
+
+
+      @app.get("/health")
+      async def health():
+          return {"status": "ok"}
+
+
+      async def test_calls_the_app_in_process():
+          async with make_client(app) as c:
+              r = await c.get("/health")
+          assert r.json() == {"status": "ok"}
+
+
+      async def test_base_url():
+          async with make_client(app) as c:
+              r = await c.get("/health")
+          assert str(r.request.url) == "http://test/health"
+    solution: |
+      import httpx
+
+
+      def make_client(app) -> httpx.AsyncClient:
+          # ASGITransport calls the app directly: full HTTP semantics, zero sockets.
+          return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+
+  - slug: quiz-fixture-scope
+    type: quiz
+    persona: lena
+    title: Fixture scope
+    difficulty: 2
+    prompt: |
+      A fixture loads the 40 MB Meridian dataset into DuckDB. Tests only **read** from it.
+      Fifty tests use it and the suite takes 90 seconds. What's the fix?
+    choices:
+      - Mark every test with pytest.mark.slow and skip them locally.
+      - Give the fixture scope="session" (or "module") so it's built once and shared.
+      - Copy the fixture body into each test so pytest can parallelize better.
+      - Make the fixture autouse=True.
+    answer: 1
+    explanation: |
+      The default scope is `function`: rebuilt for every test. Read-only, expensive setup is
+      what `scope="session"`/`"module"` is for. The catch is shared state: if a test mutates
+      a shared fixture, later tests see the change, so keep shared fixtures read-only or
+      reset them.

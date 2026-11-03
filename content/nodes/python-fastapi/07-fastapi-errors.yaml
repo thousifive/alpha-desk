@@ -5,4 +5,142 @@ order: 7
 prerequisites:
 - fastapi-background
 xp_reward: 50
-exercises: []
+exercises:
+  - slug: fastapi-domain-errors
+    type: python
+    persona: lena
+    packages: [fastapi, httpx]
+    title: Domain errors, HTTP answers
+    difficulty: 2
+    prompt: |
+      Our service layer raises `TickerNotFound` and `StaleQuote`, and both turn into
+      **500s**. The service shouldn't know about HTTP, so don't change `quote()`; register
+      **exception handlers** on the app instead:
+
+      - `TickerNotFound` → **404** `{"error": "ticker_not_found", "ticker": "<TICKER>"}`
+      - `StaleQuote` → **503** `{"error": "stale_quote", "age_s": <age>}`
+
+      *Lena: keep HTTP at the edge. The service raises what happened; the API decides
+      what that means to a client.*
+    starter_code: |
+      from fastapi import FastAPI
+
+
+      class TickerNotFound(Exception):
+          def __init__(self, ticker: str) -> None:
+              self.ticker = ticker
+
+
+      class StaleQuote(Exception):
+          def __init__(self, age_s: int) -> None:
+              self.age_s = age_s
+
+
+      def quote(ticker: str) -> float:
+          if ticker == "OLDX":
+              raise StaleQuote(age_s=900)
+          if ticker != "AURX":
+              raise TickerNotFound(ticker)
+          return 11.2
+
+
+      app = FastAPI()
+
+
+      @app.get("/quote/{ticker}")
+      async def get_quote(ticker: str):
+          return {"ticker": ticker, "px": quote(ticker)}
+    visible_tests: |
+      import httpx
+
+      from solution import app
+
+
+      async def test_ok():
+          transport = httpx.ASGITransport(app=app)
+          async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+              assert (await c.get("/quote/AURX")).json() == {"ticker": "AURX", "px": 11.2}
+    hidden_tests: |
+      import httpx
+
+      from solution import app
+
+
+      def client():
+          # raise_app_exceptions=False: an unhandled error becomes a 500 response instead of
+          # blowing up the test, so the assertion message says what's wrong.
+          t = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+          return httpx.AsyncClient(transport=t, base_url="http://t")
+
+
+      async def test_unknown_ticker_is_404():
+          async with client() as c:
+              r = await c.get("/quote/ZZZZ")
+          assert r.status_code == 404
+          assert r.json() == {"error": "ticker_not_found", "ticker": "ZZZZ"}
+
+
+      async def test_stale_quote_is_503():
+          async with client() as c:
+              r = await c.get("/quote/OLDX")
+          assert r.status_code == 503
+          assert r.json() == {"error": "stale_quote", "age_s": 900}
+    solution: |
+      from fastapi import FastAPI, Request
+      from fastapi.responses import JSONResponse
+
+
+      class TickerNotFound(Exception):
+          def __init__(self, ticker: str) -> None:
+              self.ticker = ticker
+
+
+      class StaleQuote(Exception):
+          def __init__(self, age_s: int) -> None:
+              self.age_s = age_s
+
+
+      def quote(ticker: str) -> float:
+          if ticker == "OLDX":
+              raise StaleQuote(age_s=900)
+          if ticker != "AURX":
+              raise TickerNotFound(ticker)
+          return 11.2
+
+
+      app = FastAPI()
+
+
+      @app.exception_handler(TickerNotFound)
+      async def _not_found(_: Request, exc: TickerNotFound) -> JSONResponse:
+          return JSONResponse(status_code=404, content={"error": "ticker_not_found", "ticker": exc.ticker})
+
+
+      @app.exception_handler(StaleQuote)
+      async def _stale(_: Request, exc: StaleQuote) -> JSONResponse:
+          return JSONResponse(status_code=503, content={"error": "stale_quote", "age_s": exc.age_s})
+
+
+      @app.get("/quote/{ticker}")
+      async def get_quote(ticker: str):
+          return {"ticker": ticker, "px": quote(ticker)}
+
+  - slug: quiz-422-vs-400
+    type: quiz
+    persona: marcus
+    title: Why 422 and not 400?
+    difficulty: 1
+    prompt: |
+      Marcus sends `{"qty": "lots"}` to `POST /orders` and FastAPI answers **422** with a
+      `detail` list. What does that tell him?
+    choices:
+      - The server crashed while parsing the body.
+      - The JSON was well-formed but failed validation; detail lists each field, its location, and why.
+      - He isn't authenticated.
+      - The endpoint exists but doesn't accept POST.
+    answer: 1
+    explanation: |
+      FastAPI uses **422 Unprocessable Content** for request validation errors: the syntax is
+      fine, the content isn't. Each entry in `detail` has `loc` (e.g. `["body", "qty"]`),
+      `msg` and `type`, which is why clients can map errors back to form fields. 401 means
+      auth, 405 means wrong method, and a crash is 500.
