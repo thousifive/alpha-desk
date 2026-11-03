@@ -5,10 +5,76 @@ order: 1
 prerequisites: []
 xp_reward: 50
 exercises:
-- slug: polars-daily-returns
-  type: polars
-  persona: marcus
-  title: Daily returns in Polars
-  difficulty: 1
-  prompt: Give me a Polars expression that adds a `ret` column of daily close-to-close returns per ticker.
-    *(Playable in M2.)*
+  - slug: polars-daily-returns
+    type: python
+    packages: [polars]
+    persona: marcus
+    title: Daily returns in Polars
+    difficulty: 1
+    prompt: |
+      Write `add_returns(df)` that takes a price frame with columns `ticker`, `date`, `close`
+      and returns it with a new `ret` column: close-to-close return **per ticker**, ordered
+      by date. The first row of each ticker has `ret = null`.
+
+      Don't loop over tickers in Python. One expression with a window does it.
+
+      *Marcus: if AURX's first return uses BLNK's last close, my whole backtest is junk.*
+    starter_code: |
+      import polars as pl
+
+
+      def add_returns(df: pl.DataFrame) -> pl.DataFrame:
+          return df.with_columns(ret=pl.col("close").pct_change())
+    visible_tests: |
+      import polars as pl
+
+      from solution import add_returns
+
+
+      def test_single_ticker():
+          df = pl.DataFrame({"ticker": ["A", "A"], "date": [1, 2], "close": [100.0, 110.0]})
+          out = add_returns(df)
+          assert out["ret"][0] is None
+          assert abs(out["ret"][1] - 0.1) < 1e-12
+    hidden_tests: |
+      import polars as pl
+
+      from solution import add_returns
+
+
+      def _frame():
+          return pl.DataFrame(
+              {
+                  "ticker": ["B", "A", "B", "A", "A"],
+                  "date": [1, 1, 2, 2, 3],
+                  "close": [50.0, 100.0, 55.0, 110.0, 99.0],
+              }
+          )
+
+
+      def test_first_row_per_ticker_is_null():
+          out = add_returns(_frame()).sort("ticker", "date")
+          firsts = out.group_by("ticker").agg(pl.col("ret").first()).sort("ticker")
+          assert firsts["ret"].to_list() == [None, None]
+
+
+      def test_returns_are_per_ticker():
+          out = add_returns(_frame()).sort("ticker", "date")
+          got = [None if r is None else round(r, 6) for r in out["ret"].to_list()]
+          assert got == [None, 0.1, -0.1, None, 0.1]
+
+
+      def test_keeps_input_columns():
+          out = add_returns(_frame())
+          assert out.columns[:3] == ["ticker", "date", "close"] and "ret" in out.columns
+          assert out.height == 5
+    solution: |
+      import polars as pl
+
+
+      def add_returns(df: pl.DataFrame) -> pl.DataFrame:
+          # .over("ticker") is a window: pct_change runs separately inside each ticker,
+          # like PARTITION BY in SQL. Sorting first gives the window its time order.
+          return df.sort("ticker", "date").with_columns(
+              ret=pl.col("close").pct_change().over("ticker")
+          )

@@ -12,12 +12,15 @@ from app.config import get_settings
 from app.content.schema import (
     BranchesFile,
     ContentBundle,
+    ExerciseDef,
     LevelsFile,
     NodeDef,
-    PlaceholderExercise,
+    PythonExercise,
+    QuestsFile,
     QuizExercise,
     SqlExercise,
 )
+from app.grading.python import declared_test_names
 from app.models import Exercise, SkillNode, User
 
 log = logging.getLogger(__name__)
@@ -36,6 +39,7 @@ def _read_yaml(path: Path) -> object:
 
 def load_content(content_dir: Path) -> ContentBundle:
     levels = LevelsFile.model_validate(_read_yaml(content_dir / "levels.yaml"))
+    quests = QuestsFile.model_validate(_read_yaml(content_dir / "quests.yaml"))
     branches = BranchesFile.model_validate(_read_yaml(content_dir / "branches.yaml")).branches
 
     nodes: dict[str, list[NodeDef]] = {}
@@ -48,7 +52,7 @@ def load_content(content_dir: Path) -> ContentBundle:
             raise ContentError(f"invalid node file in {branch_dir}: {e}") from e
         nodes[branch.id] = sorted(parsed, key=lambda n: n.order)
 
-    bundle = ContentBundle(levels=levels, branches=branches, nodes=nodes)
+    bundle = ContentBundle(levels=levels, quests=quests, branches=branches, nodes=nodes)
     _cross_validate(bundle)
     return bundle
 
@@ -66,12 +70,29 @@ def _cross_validate(bundle: ContentBundle) -> None:
                 if ex.slug in ex_slugs:
                     raise ContentError(f"duplicate exercise slug: {ex.slug}")
                 ex_slugs.add(ex.slug)
+                if isinstance(ex, PythonExercise):
+                    _check_python(ex)
     for branch_nodes in bundle.nodes.values():
         for node in branch_nodes:
             missing = set(node.prerequisites) - node_slugs
             if missing:
                 raise ContentError(f"{node.slug}: unknown prerequisites {sorted(missing)}")
     _check_acyclic(bundle)
+
+
+def _check_python(ex: PythonExercise) -> None:
+    try:
+        hidden = declared_test_names(ex.hidden_tests)
+        visible = declared_test_names(ex.visible_tests)
+        compile(ex.solution, f"{ex.slug}/solution", "exec")
+        compile(ex.starter_code, f"{ex.slug}/starter_code", "exec")
+    except SyntaxError as e:
+        raise ContentError(f"{ex.slug}: Python syntax error: {e}") from e
+    if not hidden:
+        raise ContentError(f"{ex.slug}: hidden_tests defines no test_* functions")
+    # Shared names would make the visible results look like part of the grade.
+    if overlap := hidden & visible:
+        raise ContentError(f"{ex.slug}: test names in both visible and hidden: {sorted(overlap)}")
 
 
 def _check_acyclic(bundle: ContentBundle) -> None:
@@ -94,9 +115,7 @@ def _check_acyclic(bundle: ContentBundle) -> None:
         visit(slug, [])
 
 
-def _exercise_row(
-    node_slug: str, order: int, ex: SqlExercise | QuizExercise | PlaceholderExercise
-) -> Exercise:
+def _exercise_row(node_slug: str, order: int, ex: ExerciseDef) -> Exercise:
     # `match` with class patterns narrows the union type per branch (like a TS switch on a tag).
     match ex:
         case SqlExercise():
@@ -109,6 +128,15 @@ def _exercise_row(
         case QuizExercise():
             spec = {"answer": ex.answer, "explanation": ex.explanation}
             starter, choices, playable = "", list(ex.choices), True
+        case PythonExercise():
+            spec = {
+                "hidden_tests": ex.hidden_tests,
+                "solution": ex.solution,
+                "visible_tests": ex.visible_tests,
+                "packages": list(ex.packages),
+                "timeout_s": ex.timeout_s,
+            }
+            starter, choices, playable = ex.starter_code, [], True
         case _:
             spec, starter, choices, playable = {}, "", [], False
     return Exercise(

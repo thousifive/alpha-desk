@@ -1,0 +1,22 @@
+# Daily quests and streak rules (spec §3.3–3.4).
+quests:
+  count: 3
+  # Total estimated time for the day's quests should land in this window.
+  min_minutes: 15
+  max_minutes: 30
+  # Rough minutes per exercise by difficulty, used only for that estimate.
+  minutes_by_difficulty: { 1: 5, 2: 9, 3: 14 }
+  # Spread quests over at least this many branches when enough are playable.
+  min_branches: 2
+  # Paid on top of the exercise's own XP, even when re-solving a passed exercise as review.
+  xp_per_quest: 15
+  # Paid once when all of today's quests are done.
+  all_done_bonus: 30
+
+streaks:
+  # One freeze token per 7 consecutive active days; a freeze covers one missed day.
+  freeze_every: 7
+  max_freezes: 2
+  # Streak XP at every 7th day (7, 14, 21, …).
+  milestone_every: 7
+  milestone_xp: 50

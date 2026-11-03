@@ -46,17 +46,70 @@ class QuizExercise(_ExerciseBase):
         return self
 
 
-class PlaceholderExercise(_ExerciseBase):
-    """Exercises for branches that become playable in later milestones (Pyodide in M2, …)."""
+# Packages the browser preloads from the Pyodide distribution. Kept to a closed set so a
+# typo fails at load time, and so the backend content check has every one installed too.
+PyPackage = Literal["polars", "pydantic", "fastapi", "httpx", "numpy"]
 
-    type: Literal["python", "polars", "review"]
+
+class PythonExercise(_ExerciseBase):
+    """Runs in Pyodide. The player's code becomes the `solution` module; tests import from it.
+
+    visible_tests: shown in the UI and run by Run (Cmd+Enter).
+    hidden_tests: only fetched at Submit time; the grade is decided by these.
+    solution: reference answer, never sent to the browser; content tests prove it passes.
+    """
+
+    type: Literal["python"]
+    starter_code: str
+    visible_tests: str = ""
+    hidden_tests: str
+    solution: str
+    packages: list[PyPackage] = []
+    timeout_s: float = Field(default=10, gt=0, le=60)
+
+
+class PlaceholderExercise(_ExerciseBase):
+    """Exercises for branches that become playable in later milestones."""
+
+    type: Literal["review"]
 
 
 # A discriminated union: Pydantic reads `type` first and validates against exactly one
-# model, giving precise error messages instead of "didn't match any of 3 variants".
+# model, giving precise error messages instead of "didn't match any of 4 variants".
 ExerciseDef = Annotated[
-    SqlExercise | QuizExercise | PlaceholderExercise, Field(discriminator="type")
+    SqlExercise | QuizExercise | PythonExercise | PlaceholderExercise,
+    Field(discriminator="type"),
 ]
+
+
+class QuestRules(_Strict):
+    count: int = Field(default=3, ge=1, le=6)
+    min_minutes: int = Field(ge=1)
+    max_minutes: int = Field(ge=1)
+    minutes_by_difficulty: dict[int, int]
+    min_branches: int = Field(default=2, ge=1)
+    xp_per_quest: int = Field(ge=0)
+    all_done_bonus: int = Field(ge=0)
+
+
+class StreakRules(_Strict):
+    freeze_every: int = Field(ge=1)  # earn one freeze per this many consecutive days
+    max_freezes: int = Field(ge=0)
+    milestone_every: int = Field(ge=1)  # pay streak XP at every N days (7, 14, …)
+    milestone_xp: int = Field(ge=0)
+
+
+class QuestsFile(_Strict):
+    quests: QuestRules
+    streaks: StreakRules
+
+    @model_validator(mode="after")
+    def _minutes(self) -> "QuestsFile":
+        if self.quests.min_minutes > self.quests.max_minutes:
+            raise ValueError("quests.min_minutes must be <= max_minutes")
+        if set(self.quests.minutes_by_difficulty) != {1, 2, 3}:
+            raise ValueError("quests.minutes_by_difficulty needs keys 1, 2, 3")
+        return self
 
 
 class NodeDef(_Strict):
@@ -115,5 +168,6 @@ class ContentBundle(_Strict):
     """Everything under /content, validated and cross-checked."""
 
     levels: LevelsFile
+    quests: QuestsFile
     branches: list[BranchDef]
     nodes: dict[str, list[NodeDef]]  # branch id → nodes ordered by `order`

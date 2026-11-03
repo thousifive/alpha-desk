@@ -6,10 +6,67 @@ prerequisites:
 - py-dataclasses-pydantic
 xp_reward: 50
 exercises:
-- slug: py-async-blocking-call
-  type: python
-  persona: lena
-  title: Why is the API stalling?
-  difficulty: 2
-  prompt: Our `/prices` endpoint freezes under load. I suspect someone put a blocking call inside an `async
-    def`. Find it and fix it. *(Playable in M2.)*
+  - slug: py-async-blocking-call
+    type: python
+    persona: lena
+    title: Why is the API stalling?
+    difficulty: 2
+    prompt: |
+      Our price service freezes under load. `fetch_quote` is `async`, but someone put a
+      **blocking call** inside it, so five concurrent requests take five times as long.
+
+      Fix `fetch_quote` so that `fetch_many` of 5 tickers finishes in about one delay, not
+      five. Keep the signatures.
+
+      *Lena: async isn't magic. One blocking call stalls the whole event loop.*
+    starter_code: |
+      import asyncio
+      import time
+
+      DELAY_S = 0.2
+
+
+      async def fetch_quote(ticker: str) -> dict[str, object]:
+          time.sleep(DELAY_S)  # pretend this is the network
+          return {"ticker": ticker, "px": 100.0}
+
+
+      async def fetch_many(tickers: list[str]) -> list[dict[str, object]]:
+          return [await fetch_quote(t) for t in tickers]
+    visible_tests: |
+      from solution import fetch_quote
+
+
+      async def test_returns_a_quote():
+          q = await fetch_quote("AURX")
+          assert q["ticker"] == "AURX"
+    hidden_tests: |
+      import time
+
+      from solution import DELAY_S, fetch_many
+
+
+      async def test_results_in_input_order():
+          got = await fetch_many(["AURX", "BLNK", "CVTA"])
+          assert [q["ticker"] for q in got] == ["AURX", "BLNK", "CVTA"]
+
+
+      async def test_runs_concurrently():
+          start = time.perf_counter()
+          await fetch_many(["A", "B", "C", "D", "E"])
+          elapsed = time.perf_counter() - start
+          assert elapsed < DELAY_S * 2.5, f"took {elapsed:.2f}s; still sequential or blocking"
+    solution: |
+      import asyncio
+
+      DELAY_S = 0.2
+
+
+      async def fetch_quote(ticker: str) -> dict[str, object]:
+          await asyncio.sleep(DELAY_S)  # yields to the event loop instead of blocking it
+          return {"ticker": ticker, "px": 100.0}
+
+
+      async def fetch_many(tickers: list[str]) -> list[dict[str, object]]:
+          # gather schedules all coroutines at once and returns results in input order.
+          return list(await asyncio.gather(*(fetch_quote(t) for t in tickers)))
