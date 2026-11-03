@@ -19,10 +19,10 @@ export function Layout() {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-20 flex h-11 items-center gap-4 border-b border-line bg-bg/90 px-4 backdrop-blur">
-        <Link to="/" className="font-mono text-sm font-semibold tracking-wider text-amber">
+        <Link to="/" className="shrink-0 font-mono text-sm font-semibold tracking-wider text-amber">
           ALPHA DESK
         </Link>
-        <nav className="flex gap-1 font-mono text-xs">
+        <nav className="flex min-w-0 gap-1 overflow-x-auto whitespace-nowrap font-mono text-xs">
           <NavLink to="/" end className={navCls}>
             DASHBOARD
           </NavLink>
@@ -36,9 +36,9 @@ export function Layout() {
             PIPELINES
           </NavLink>
         </nav>
-        <div className="ml-auto flex items-center gap-3 font-mono text-xs">
+        <div className="ml-auto flex shrink-0 items-center gap-3 whitespace-nowrap font-mono text-xs">
           {p && (
-            <span className="text-muted">
+            <span className="hidden text-muted sm:inline">
               <span className="text-ink">{p.level?.title ?? '—'}</span>
               <span className="mx-2 text-line">|</span>
               <span className="text-amber">{p.xp_total.toLocaleString()}</span> XP

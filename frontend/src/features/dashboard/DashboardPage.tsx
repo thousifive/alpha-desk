@@ -4,6 +4,8 @@ import { useBranch, useBranches, useProgress } from '../../api/hooks'
 import type { BranchDetail, Progress } from '../../api/types'
 import { Bar, Panel } from '../../components/ui'
 import { PERSONAS } from '../../lib/personas'
+import { QuestBoard } from './QuestBoard'
+import { StreakCard } from './StreakCard'
 
 export function DashboardPage() {
   const progress = useProgress()
@@ -20,19 +22,14 @@ export function DashboardPage() {
   return (
     <main className="mx-auto grid w-full max-w-6xl gap-4 p-4 md:grid-cols-3 md:p-6">
       <LevelCard p={progress.data} />
-      <Panel title="STREAK" right={<span className="font-mono text-[10px] text-muted">M2</span>}>
-        <p className="font-mono text-3xl text-muted">—</p>
-        <p className="mt-2 text-xs text-muted">Streaks and freeze tokens arrive in M2.</p>
-      </Panel>
+      <StreakCard streak={progress.data.streak} />
       <BossCard p={progress.data} />
 
-      <Panel
-        title="UP NEXT"
-        className="md:col-span-2"
-        right={<span className="font-mono text-[10px] text-muted">daily quests in M2</span>}
-      >
-        {sql.data ? <UpNext branch={sql.data} /> : <p className="text-sm text-muted">Loading…</p>}
-      </Panel>
+      <QuestBoard
+        fallback={
+          sql.data ? <UpNext branch={sql.data} /> : <p className="text-sm text-muted">Loading…</p>
+        }
+      />
 
       <Panel title="SKILL TREE">
         <ul className="space-y-3">
