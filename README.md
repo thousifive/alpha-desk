@@ -42,14 +42,53 @@ alpha-desk/
 - `uv` (installs Python 3.12 for you)
 - An Anthropic API key (needed from M4 onward)
 
-### Setup
+Install the tools on macOS:
 ```bash
-make install                                  # uv sync + pnpm install
-cp backend/.env.example backend/.env
-cd backend && uv run alpha-desk hash-password # paste the printed line into backend/.env
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"  # use as SESSION_SECRET
-cd .. && make dev                             # API on :8000, app on http://localhost:5173
+brew install node uv     # Node 22+ and uv
+corepack enable pnpm     # pnpm ships with Node via corepack
 ```
+
+### Setup, step by step
+
+**1. Clone and install dependencies**
+```bash
+git clone https://github.com/<your-username>/alpha-desk.git
+cd alpha-desk
+make install             # uv sync (backend) + pnpm install (frontend)
+```
+
+**2. Create your env file**
+```bash
+cp backend/.env.example backend/.env
+```
+
+**3. Set a login password.** The app is single-user and password-protected.
+```bash
+cd backend && uv run alpha-desk hash-password && cd ..
+```
+Type a password twice, then replace the `APP_PASSWORD_HASH=''` line in `backend/.env`
+with the printed line. Keep the single quotes, because the hash contains `$`.
+
+**4. Set a session secret**
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+Paste the output as `SESSION_SECRET=...` in `backend/.env`.
+
+**5. Start the app**
+```bash
+make dev                 # API on :8000, app on http://localhost:5173
+```
+
+**6. Log in and play.** Open http://localhost:5173 and log in with the password from
+step 3. Pick a ticket from the dashboard or skill tree, solve it in the editor, and submit to
+run the hidden tests and earn XP.
+
+**7. Day to day**
+- `make dev` to start, Ctrl+C to stop both servers.
+- After editing YAML in `/content`, run `make sync-content` (or restart the backend).
+- `make test` and `make lint` before committing.
+
 The SQLite database is created by Alembic on first `make dev-backend`, and `/content` is
 synced into it on every startup. The fictional market dataset is committed in
 `data/meridian/`; `make seed` regenerates it deterministically.
