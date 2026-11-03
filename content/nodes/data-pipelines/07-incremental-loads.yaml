@@ -1,0 +1,8 @@
+slug: incremental-loads
+title: Incremental Loads
+description: Watermarks and change detection.
+order: 7
+prerequisites:
+- idempotent-loads
+xp_reward: 50
+exercises: []

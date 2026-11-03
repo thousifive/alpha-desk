@@ -1,0 +1,8 @@
+slug: polars-timeseries
+title: Time-Series Joins
+description: join_asof, group_by_dynamic, and rolling windows.
+order: 3
+prerequisites:
+- polars-lazy
+xp_reward: 50
+exercises: []

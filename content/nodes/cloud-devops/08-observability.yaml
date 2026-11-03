@@ -1,0 +1,8 @@
+slug: observability
+title: Basic Observability
+description: Metrics, health checks, and alerts.
+order: 8
+prerequisites:
+- logging
+xp_reward: 50
+exercises: []

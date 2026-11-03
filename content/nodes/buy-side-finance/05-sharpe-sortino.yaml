@@ -1,0 +1,22 @@
+slug: sharpe-sortino
+title: Sharpe & Sortino
+description: Risk-adjusted returns.
+order: 5
+prerequisites:
+- factor-exposure
+xp_reward: 50
+exercises:
+- slug: quiz-sharpe-meaning
+  type: quiz
+  persona: priya
+  title: What does Sharpe tell me?
+  difficulty: 1
+  prompt: Marcus says our Sharpe went from 1.2 to 0.8. In plain English, what happened?
+  choices:
+  - Returns fell, full stop
+  - We earned less return per unit of volatility
+  - Our drawdown got smaller
+  - Our beta to the market rose
+  answer: 1
+  explanation: Sharpe is excess return divided by volatility. A lower Sharpe means less return for each
+    unit of risk taken, either because returns fell or volatility rose.

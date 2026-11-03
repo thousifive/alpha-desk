@@ -1,0 +1,48 @@
+# The six skill-tree branches. Boss mapping is provisional (see M1 summary): the spec names
+# five bosses for six branches, so buy-side-finance has none yet.
+branches:
+  - id: sql-olap
+    title: SQL & OLAP
+    description: Window functions, CTEs, time-series aggregation, and columnar engines.
+    order: 1
+    playable_from: M1
+    boss:
+      title: The Oracle
+      description: An MCP server exposing the market DB and SEC filings as tools.
+  - id: python-fastapi
+    title: Python & FastAPI
+    description: Typed, async, tested Python services.
+    order: 2
+    playable_from: M2
+    boss:
+      title: The Analytics Desk
+      description: FastAPI endpoints for returns, drawdown, and sector exposure.
+  - id: data-pipelines
+    title: Data Pipelines
+    description: Polars, ETL, validation, and idempotent incremental loads.
+    order: 3
+    playable_from: M2
+    boss:
+      title: The Data Feed
+      description: An ETL that loads daily prices into DuckDB with Polars, idempotently.
+  - id: agents-llms
+    title: Agents & LLMs
+    description: Tool use, MCP, LangGraph, RAG, text-to-SQL guardrails, and evals.
+    order: 4
+    playable_from: M4
+    boss:
+      title: The Copilot
+      description: A LangGraph agent doing text-to-SQL plus RAG over 10-K filings.
+  - id: cloud-devops
+    title: Cloud & DevOps
+    description: Docker, CI, managed services, and observability.
+    order: 5
+    playable_from: M6
+    boss:
+      title: Go Live
+      description: Deploy the Research Copilot with Docker and CI.
+  - id: buy-side-finance
+    title: Buy-Side Finance
+    description: Exposures, factors, risk-adjusted returns, and how a fund thinks.
+    order: 6
+    playable_from: M3

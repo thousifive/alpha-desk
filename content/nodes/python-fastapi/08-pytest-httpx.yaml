@@ -1,0 +1,8 @@
+slug: pytest-httpx
+title: Testing with pytest + httpx
+description: Fixtures, parametrize, and ASGI test clients.
+order: 8
+prerequisites:
+- fastapi-errors
+xp_reward: 50
+exercises: []

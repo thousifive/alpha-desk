@@ -1,0 +1,8 @@
+slug: deploy-targets
+title: Deploy Targets
+description: 'Fly.io, Render, or AWS: trade-offs.'
+order: 6
+prerequisites:
+- github-actions
+xp_reward: 50
+exercises: []

@@ -1,0 +1,8 @@
+slug: rag-retrieval
+title: 'RAG: Chunking & Retrieval'
+description: Chunking, embeddings, and retrieval quality.
+order: 5
+prerequisites:
+- langgraph-checkpointing
+xp_reward: 50
+exercises: []

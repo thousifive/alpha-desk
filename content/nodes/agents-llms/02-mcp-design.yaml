@@ -1,0 +1,8 @@
+slug: mcp-design
+title: MCP Server Design
+description: Resources, tools, and prompts over MCP.
+order: 2
+prerequisites:
+- tool-use
+xp_reward: 50
+exercises: []

@@ -1,0 +1,14 @@
+slug: docker-basics
+title: Docker
+description: Images, layers, multi-stage builds.
+order: 1
+prerequisites: []
+xp_reward: 50
+exercises:
+- slug: review-dockerfile-cache
+  type: review
+  persona: lena
+  title: Slow Docker builds
+  difficulty: 1
+  prompt: Every CI build reinstalls all dependencies. Review the Dockerfile and explain the layer-caching
+    mistake. *(Playable in M6.)*

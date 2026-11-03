@@ -1,0 +1,8 @@
+slug: py-dataclasses-pydantic
+title: Dataclasses vs Pydantic
+description: When to use plain dataclasses and when you need validation.
+order: 2
+prerequisites:
+- py-typing
+xp_reward: 50
+exercises: []

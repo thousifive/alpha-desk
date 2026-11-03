@@ -1,0 +1,8 @@
+slug: logging
+title: Structured Logging
+description: JSON logs and correlation ids.
+order: 7
+prerequisites:
+- deploy-targets
+xp_reward: 50
+exercises: []

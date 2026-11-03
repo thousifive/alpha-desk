@@ -1,0 +1,8 @@
+slug: max-drawdown
+title: Max Drawdown
+description: Peak-to-trough losses and why PMs fear them.
+order: 6
+prerequisites:
+- sharpe-sortino
+xp_reward: 50
+exercises: []

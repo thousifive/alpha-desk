@@ -1,0 +1,8 @@
+slug: llm-evals
+title: LLM Evals
+description: Golden questions and numeric accuracy checks.
+order: 8
+prerequisites:
+- text-to-sql-guardrails
+xp_reward: 50
+exercises: []

@@ -1,0 +1,16 @@
+# Career ladder at Meridian Capital. min_xp must start at 0 and strictly increase.
+levels:
+  - { title: Intern, min_xp: 0 }
+  - { title: Analyst, min_xp: 500 }
+  - { title: Associate, min_xp: 1500 }
+  - { title: VP, min_xp: 3500 }
+  - { title: Director, min_xp: 7000 }
+  - { title: Partner, min_xp: 12000 }
+
+xp:
+  # Base XP for a passed exercise, by difficulty (1 = easy, 3 = hard).
+  base_by_difficulty: { 1: 20, 2: 40, 3: 70 }
+  # Extra fraction of base XP when the first-ever attempt passes.
+  first_try_bonus: 0.25
+  # Fraction of XP removed when 0, 1, 2 or 3 hints were used (hints arrive in M4).
+  hint_penalty: [0.0, 0.1, 0.25, 0.5]

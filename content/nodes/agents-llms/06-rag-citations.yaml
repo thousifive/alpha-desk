@@ -1,0 +1,8 @@
+slug: rag-citations
+title: 'RAG: Citations'
+description: Grounded answers with verifiable sources.
+order: 6
+prerequisites:
+- rag-retrieval
+xp_reward: 50
+exercises: []

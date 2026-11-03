@@ -1,0 +1,7 @@
+slug: tool-use
+title: Tool Use
+description: Designing tools an LLM can call reliably.
+order: 1
+prerequisites: []
+xp_reward: 50
+exercises: []

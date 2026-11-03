@@ -44,6 +44,7 @@ class Exercise(SQLModel, table=True):
     starter_code: str = ""
     difficulty: int = 1
     playable: bool = True  # False for placeholder exercises in branches built later
+    choices: list[str] = Field(default_factory=list, sa_column=Column(JSON))  # quiz only; public
     # Hidden grading data: solution_sql, quiz answers, etc. Never sent to the client.
     spec: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
 

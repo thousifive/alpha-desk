@@ -1,0 +1,8 @@
+slug: idempotent-loads
+title: Idempotent Loads
+description: Upserts, partition overwrite, and re-runnable jobs.
+order: 6
+prerequisites:
+- schema-validation
+xp_reward: 50
+exercises: []

@@ -1,0 +1,8 @@
+slug: beta
+title: Beta
+description: Market sensitivity of a position and a book.
+order: 3
+prerequisites:
+- gross-net-exposure
+xp_reward: 50
+exercises: []

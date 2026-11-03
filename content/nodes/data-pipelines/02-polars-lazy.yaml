@@ -1,0 +1,8 @@
+slug: polars-lazy
+title: The Lazy API
+description: LazyFrame, query plans, and predicate pushdown.
+order: 2
+prerequisites:
+- polars-basics
+xp_reward: 50
+exercises: []

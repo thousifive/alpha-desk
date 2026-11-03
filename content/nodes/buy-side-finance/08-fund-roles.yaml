@@ -1,0 +1,8 @@
+slug: fund-roles
+title: Who Does What
+description: PMs, analysts, risk, and research workflows.
+order: 8
+prerequisites:
+- pnl-attribution
+xp_reward: 50
+exercises: []

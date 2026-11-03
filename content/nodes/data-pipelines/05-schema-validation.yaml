@@ -1,0 +1,8 @@
+slug: schema-validation
+title: Schema Validation
+description: Pandera or Pydantic contracts at pipeline boundaries.
+order: 5
+prerequisites:
+- missing-late-data
+xp_reward: 50
+exercises: []

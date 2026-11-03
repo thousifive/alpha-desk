@@ -1,0 +1,15 @@
+slug: text-to-sql-guardrails
+title: Text-to-SQL Guardrails
+description: Read-only roles, allow-lists, and query validation.
+order: 7
+prerequisites:
+- rag-citations
+xp_reward: 50
+exercises:
+- slug: review-text-to-sql-injection
+  type: review
+  persona: lena
+  title: Spot the injection
+  difficulty: 2
+  prompt: This text-to-SQL endpoint pastes model output straight into `conn.execute`. List every way it
+    can go wrong. *(Playable in M4.)*

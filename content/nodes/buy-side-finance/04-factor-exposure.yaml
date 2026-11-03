@@ -1,0 +1,8 @@
+slug: factor-exposure
+title: Factor Exposure
+description: Value, momentum, size, quality tilts.
+order: 4
+prerequisites:
+- beta
+xp_reward: 50
+exercises: []

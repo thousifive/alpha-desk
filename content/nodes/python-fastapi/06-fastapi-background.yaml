@@ -1,0 +1,8 @@
+slug: fastapi-background
+title: Background Tasks
+description: BackgroundTasks vs a real queue.
+order: 6
+prerequisites:
+- fastapi-dependencies
+xp_reward: 50
+exercises: []

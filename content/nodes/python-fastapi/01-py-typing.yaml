@@ -1,0 +1,7 @@
+slug: py-typing
+title: Type Hints & Protocols
+description: 'Typing beyond the basics: generics, Protocol, TypedDict.'
+order: 1
+prerequisites: []
+xp_reward: 50
+exercises: []

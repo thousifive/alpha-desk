@@ -1,0 +1,8 @@
+slug: scheduling
+title: Scheduling
+description: Cron, orchestration, retries, and backfills.
+order: 8
+prerequisites:
+- incremental-loads
+xp_reward: 50
+exercises: []

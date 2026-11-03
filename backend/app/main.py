@@ -7,7 +7,8 @@ from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
-from app.db import dispose_engine
+from app.content.loader import get_content, sync_content
+from app.db import dispose_engine, get_sessionmaker
 from app.routers import auth
 
 
@@ -15,6 +16,10 @@ from app.routers import auth
 # `yield` runs once at startup, code after runs at shutdown.
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    content = get_content()  # parse + validate at boot so bad YAML fails fast
+    if get_settings().sync_content_on_startup:
+        async with get_sessionmaker()() as session:
+            await sync_content(session, content)
     yield
     await dispose_engine()
 

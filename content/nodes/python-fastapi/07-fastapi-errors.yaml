@@ -1,0 +1,8 @@
+slug: fastapi-errors
+title: Error Handling
+description: HTTPException, exception handlers, and problem details.
+order: 7
+prerequisites:
+- fastapi-background
+xp_reward: 50
+exercises: []

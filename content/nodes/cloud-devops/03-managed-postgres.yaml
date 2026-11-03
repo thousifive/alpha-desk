@@ -1,0 +1,8 @@
+slug: managed-postgres
+title: Managed Postgres
+description: Connection pooling, migrations, backups.
+order: 3
+prerequisites:
+- env-config
+xp_reward: 50
+exercises: []

@@ -1,0 +1,8 @@
+slug: pnl-attribution
+title: PnL Attribution
+description: Where did today's PnL come from?
+order: 7
+prerequisites:
+- max-drawdown
+xp_reward: 50
+exercises: []

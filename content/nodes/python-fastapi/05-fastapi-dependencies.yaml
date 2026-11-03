@@ -1,0 +1,8 @@
+slug: fastapi-dependencies
+title: Dependency Injection
+description: Depends, yield dependencies, and overriding in tests.
+order: 5
+prerequisites:
+- fastapi-routing
+xp_reward: 50
+exercises: []

@@ -1,0 +1,8 @@
+slug: object-storage
+title: Object Storage
+description: Buckets, Parquet on S3/GCS, signed URLs.
+order: 4
+prerequisites:
+- managed-postgres
+xp_reward: 50
+exercises: []

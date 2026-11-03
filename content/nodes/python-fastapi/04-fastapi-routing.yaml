@@ -1,0 +1,8 @@
+slug: fastapi-routing
+title: FastAPI Routing
+description: Path/query/body params and response models.
+order: 4
+prerequisites:
+- py-async
+xp_reward: 50
+exercises: []

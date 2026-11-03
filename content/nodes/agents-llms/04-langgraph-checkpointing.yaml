@@ -1,0 +1,8 @@
+slug: langgraph-checkpointing
+title: Checkpointing
+description: Persistence, resumption, and human-in-the-loop.
+order: 4
+prerequisites:
+- langgraph-basics
+xp_reward: 50
+exercises: []

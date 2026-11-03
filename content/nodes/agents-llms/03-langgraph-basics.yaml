@@ -1,0 +1,8 @@
+slug: langgraph-basics
+title: LangGraph State & Nodes
+description: State, nodes, edges, and conditional routing.
+order: 3
+prerequisites:
+- mcp-design
+xp_reward: 50
+exercises: []

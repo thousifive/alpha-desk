@@ -1,0 +1,8 @@
+slug: env-config
+title: Environment Config
+description: 12-factor config and secrets handling.
+order: 2
+prerequisites:
+- docker-basics
+xp_reward: 50
+exercises: []

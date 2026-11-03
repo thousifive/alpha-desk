@@ -1,0 +1,14 @@
+slug: polars-basics
+title: Polars Expressions
+description: 'select, with_columns, filter: thinking in expressions.'
+order: 1
+prerequisites: []
+xp_reward: 50
+exercises:
+- slug: polars-daily-returns
+  type: polars
+  persona: marcus
+  title: Daily returns in Polars
+  difficulty: 1
+  prompt: Give me a Polars expression that adds a `ret` column of daily close-to-close returns per ticker.
+    *(Playable in M2.)*

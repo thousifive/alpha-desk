@@ -1,0 +1,21 @@
+slug: gross-net-exposure
+title: Gross vs Net Exposure
+description: Measuring how much risk the book carries.
+order: 2
+prerequisites:
+- long-short
+xp_reward: 50
+exercises:
+- slug: quiz-gross-vs-net
+  type: quiz
+  persona: priya
+  title: Gross or net?
+  difficulty: 1
+  prompt: We're $120M long and $80M short. Risk wants our **net** exposure. What do I tell them?
+  choices:
+  - $200M
+  - $40M
+  - $120M
+  - -$40M
+  answer: 1
+  explanation: Net = long - short = 120 - 80 = $40M. Gross would be long + short = $200M.

@@ -1,0 +1,15 @@
+slug: py-async
+title: Async / Await
+description: The event loop, coroutines, gather, and blocking-call traps.
+order: 3
+prerequisites:
+- py-dataclasses-pydantic
+xp_reward: 50
+exercises:
+- slug: py-async-blocking-call
+  type: python
+  persona: lena
+  title: Why is the API stalling?
+  difficulty: 2
+  prompt: Our `/prices` endpoint freezes under load. I suspect someone put a blocking call inside an `async
+    def`. Find it and fix it. *(Playable in M2.)*

@@ -1,0 +1,8 @@
+slug: github-actions
+title: GitHub Actions CI
+description: Test, lint, and build pipelines.
+order: 5
+prerequisites:
+- object-storage
+xp_reward: 50
+exercises: []

@@ -1,8 +1,8 @@
 """initial tables
 
-Revision ID: 27f35524761d
+Revision ID: 15d895cff60b
 Revises: 
-Create Date: 2026-11-03 12:51:08.563373
+Create Date: 2026-11-03 12:55:15.759998
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import sqlmodel  # noqa: F401  (autogenerate emits sqlmodel.sql.sqltypes.AutoStr
 
 
 # revision identifiers, used by Alembic.
-revision: str = '27f35524761d'
+revision: str = '15d895cff60b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -53,6 +53,7 @@ def upgrade() -> None:
     sa.Column('starter_code', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('difficulty', sa.Integer(), nullable=False),
     sa.Column('playable', sa.Boolean(), nullable=False),
+    sa.Column('choices', sa.JSON(), nullable=True),
     sa.Column('spec', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['node_slug'], ['skillnode.slug'], ),
     sa.PrimaryKeyConstraint('slug')
