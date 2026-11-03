@@ -12,8 +12,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import SQLModel
 
+from app.auth import hash_password
 from app.config import get_settings
 from app.db import dispose_engine, get_engine
+
+TEST_PASSWORD = "correct horse battery staple"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -22,6 +25,7 @@ def _test_env(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
     os.environ["SESSION_SECRET"] = "test-secret"
     os.environ["SYNC_CONTENT_ON_STARTUP"] = "false"
+    os.environ["APP_PASSWORD_HASH"] = hash_password(TEST_PASSWORD)
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -47,3 +51,10 @@ async def client() -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=create_app())
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
+
+@pytest.fixture
+async def authed_client(client: AsyncClient) -> AsyncClient:
+    resp = await client.post("/api/auth/login", json={"password": TEST_PASSWORD})
+    assert resp.status_code == 200
+    return client  # httpx keeps the session cookie on the client for later requests

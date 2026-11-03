@@ -4,8 +4,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.config import get_settings
 from app.db import dispose_engine
+from app.routers import auth
 
 
 # lifespan replaces the old @app.on_event("startup"/"shutdown") hooks: code before
@@ -17,7 +20,17 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    settings = get_settings()
     app = FastAPI(title="Alpha Desk", lifespan=lifespan)
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.session_secret,
+        session_cookie="alpha_desk_session",
+        max_age=settings.session_max_age_s,
+        same_site="lax",  # sent on top-level navigations, not cross-site subrequests (CSRF guard)
+        https_only=settings.secure_cookies,
+    )
+    app.include_router(auth.router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:
