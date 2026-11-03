@@ -1,42 +1,79 @@
 import { Fragment, type ReactNode } from 'react'
 
+// A fenced block: ```lang? newline, body, closing ```. split() with one capture group puts
+// code bodies at the odd indexes of the result.
+const FENCE = /^```[^\n]*\n([\s\S]*?)^```[ \t]*$/m
+const FENCE_ALL = new RegExp(FENCE.source, 'gm')
+
 /**
- * Minimal markdown for ticket prompts: paragraphs, - / 1. lists, **bold**, *em*, `code`.
+ * Minimal markdown for ticket prompts: paragraphs, - / 1. lists (wrapped continuation
+ * lines allowed), ``` fenced code, **bold**, *em*, `code`.
  * Builds React elements (no innerHTML), so even a malformed YAML prompt can't inject markup.
  */
 export function Markdown({ source }: { source: string }) {
-  const blocks = source.trim().split(/\n\s*\n/)
+  const parts = source.trim().split(FENCE_ALL)
   return (
     <div className="prose-ticket">
-      {blocks.map((block, i) => {
-        const lines = block.split('\n')
-        if (lines.every((l) => /^\s*-\s+/.test(l))) {
-          return (
-            <ul key={i}>
-              {lines.map((l, j) => (
-                <li key={j}>{inline(l.replace(/^\s*-\s+/, ''))}</li>
-              ))}
-            </ul>
-          )
-        }
-        if (lines.every((l) => /^\s*\d+\.\s+/.test(l) || /^\s{2,}\S/.test(l))) {
-          const items = lines.reduce<string[]>((acc, l) => {
-            if (/^\s*\d+\.\s+/.test(l)) acc.push(l.replace(/^\s*\d+\.\s+/, ''))
-            else acc[acc.length - 1] += ` ${l.trim()}`
-            return acc
-          }, [])
-          return (
-            <ol key={i}>
-              {items.map((t, j) => (
-                <li key={j}>{inline(t)}</li>
-              ))}
-            </ol>
-          )
-        }
-        return <p key={i}>{inline(lines.join(' '))}</p>
-      })}
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <pre key={i}>
+            <code>{part.replace(/\n$/, '')}</code>
+          </pre>
+        ) : (
+          <Fragment key={i}>{blocks(part)}</Fragment>
+        ),
+      )}
     </div>
   )
+}
+
+/** Inline-only markdown (code, bold, em) for short strings like quiz choices. */
+export function InlineMarkdown({ text }: { text: string }) {
+  return <span className="prose-ticket">{inline(text)}</span>
+}
+
+const BULLET = /^\s*-\s+/
+const NUMBERED = /^\s*\d+\.\s+/
+const CONTINUATION = /^\s{2,}\S/
+
+/** List items, folding indented continuation lines into the item above. */
+function listItems(lines: string[], marker: RegExp): string[] | null {
+  if (!marker.test(lines[0] ?? '')) return null
+  if (!lines.every((l) => marker.test(l) || CONTINUATION.test(l))) return null
+  return lines.reduce<string[]>((acc, l) => {
+    if (marker.test(l)) acc.push(l.replace(marker, ''))
+    else acc[acc.length - 1] += ` ${l.trim()}`
+    return acc
+  }, [])
+}
+
+function blocks(source: string): ReactNode[] {
+  const text = source.trim()
+  if (!text) return []
+  return text.split(/\n\s*\n/).map((block, i) => {
+    const lines = block.split('\n')
+    const bullets = listItems(lines, BULLET)
+    if (bullets) {
+      return (
+        <ul key={i}>
+          {bullets.map((t, j) => (
+            <li key={j}>{inline(t)}</li>
+          ))}
+        </ul>
+      )
+    }
+    const numbered = listItems(lines, NUMBERED)
+    if (numbered) {
+      return (
+        <ol key={i}>
+          {numbered.map((t, j) => (
+            <li key={j}>{inline(t)}</li>
+          ))}
+        </ol>
+      )
+    }
+    return <p key={i}>{inline(lines.join(' '))}</p>
+  })
 }
 
 const TOKEN = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g

@@ -34,6 +34,12 @@ body {
 .prose-ticket code {
   @apply font-mono text-[0.85em] text-amber bg-panel-2 px-1 py-0.5 rounded;
 }
+.prose-ticket pre {
+  @apply my-2 overflow-x-auto rounded border border-line bg-panel-2 p-3 font-mono text-[0.8em] leading-relaxed;
+}
+.prose-ticket pre code {
+  @apply bg-transparent p-0 text-ink;
+}
 .prose-ticket strong {
   @apply text-ink font-semibold;
 }

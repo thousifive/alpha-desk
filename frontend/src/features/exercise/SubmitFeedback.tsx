@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { Link } from 'react-router'
 
 import type { AttemptOut } from '../../api/types'
+import { Markdown } from '../../lib/markdown'
 import { totalGain } from './useSubmission'
 
 interface Props {
@@ -42,7 +43,11 @@ export function SubmitFeedback({ out, nextSlug, branchId }: Props) {
           {out.streak_xp > 0 && ` · milestone +${out.streak_xp} XP`}
         </p>
       )}
-      {out.explanation && <p className="mt-2 text-muted">{out.explanation}</p>}
+      {out.explanation && (
+        <div className="mt-2 text-muted">
+          <Markdown source={out.explanation} />
+        </div>
+      )}
       {out.passed && (
         <div className="mt-2 flex gap-3 font-mono text-xs">
           {nextSlug ? (

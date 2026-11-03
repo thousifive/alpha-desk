@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 
+import { InlineMarkdown } from '../../lib/markdown'
+
 interface Props {
   choices: string[]
   selected: number | null
@@ -34,7 +36,7 @@ export function QuizView({ choices, selected, onSelect, locked }: Props) {
             } disabled:opacity-70`}
           >
             <span className="font-mono text-xs text-muted">{i + 1}</span>
-            <span>{c}</span>
+            <InlineMarkdown text={c} />
           </button>
         </li>
       ))}
