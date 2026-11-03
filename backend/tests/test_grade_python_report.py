@@ -1,4 +1,4 @@
-"""Tests for TODO(me) #3 (M2): app.grading.python.grade_python_report.
+"""Tests for TODO(me) M2-3: app.grading.python.grade_python_report.
 
 Remove the `pytestmark` line once it's implemented; xfail is strict, so passing tests with
 the marker still in place fail the run (that's your reminder).
@@ -8,7 +8,7 @@ import pytest
 
 from app.grading.python import PythonGrade, ReportedTest, grade_python_report
 
-pytestmark = pytest.mark.xfail(reason="TODO(me) #3: implement grade_python_report", strict=True)
+pytestmark = pytest.mark.xfail(reason="TODO(me) M2-3: implement grade_python_report", strict=True)
 
 EXPECTED = {"test_a", "test_b", "test_c"}
 
