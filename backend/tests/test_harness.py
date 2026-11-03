@@ -135,3 +135,26 @@ async def test_multiline_locals_are_collapsed() -> None:
     from app.pyrunner.harness import _short_repr
 
     assert _short_repr(Frame()) == "shape: (5, 4) …"
+
+
+async def test_inline_threads_covers_yield_deps_and_is_restored() -> None:
+    import anyio.to_thread
+
+    before = anyio.to_thread.run_sync
+    user = (
+        "from fastapi import Depends, FastAPI\n"
+        "app = FastAPI()\nCLOSED = []\n"
+        "def dep():\n    try:\n        yield 1\n    finally:\n        CLOSED.append(True)\n"
+        "@app.get('/x')\ndef x(v: int = Depends(dep)):\n    return {'v': v}\n"
+    )
+    tests = (
+        "import httpx, threading\nfrom solution import app, CLOSED\n"
+        "async def test_x():\n"
+        "    t = httpx.ASGITransport(app=app)\n"
+        "    async with httpx.AsyncClient(transport=t, base_url='http://t') as c:\n"
+        "        assert (await c.get('/x')).json() == {'v': 1}\n"
+        "    assert CLOSED == [True]\n"
+    )
+    r = await _run(user, tests, ["fastapi", "httpx"])
+    assert r["tests"][0]["passed"], r["tests"][0]["error"]
+    assert anyio.to_thread.run_sync is before

@@ -22,8 +22,8 @@ import sys
 import time
 import traceback
 import types
-from collections.abc import Callable
-from contextlib import redirect_stdout
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, nullcontext, redirect_stdout
 from typing import Any
 
 MAX_OUTPUT_CHARS = 64_000
@@ -55,26 +55,42 @@ class _CappedIO(io.StringIO):
         return self.getvalue() + ("\n… output truncated" if self.truncated else "")
 
 
-def install_fastapi_shim() -> None:
-    """Make FastAPI work without threads (Pyodide can't start any).
+@contextmanager
+def inline_threads() -> Iterator[None]:
+    """Run anyio's "worker thread" calls inline while the tests run (Pyodide has no threads).
 
-    Starlette runs sync endpoints/dependencies via anyio.to_thread. We swap that helper for
-    one that just calls the function inline. Each module did `from ... import
-    run_in_threadpool`, which copied the name into its own namespace, so we patch every copy.
+    FastAPI/Starlette hand sync endpoints, sync dependencies, `yield` dependencies and
+    background tasks to `anyio.to_thread.run_sync`. Every caller looks it up as a module
+    attribute at call time (`anyio.to_thread.run_sync(...)`), so replacing that one
+    attribute covers them all. One exception copied the name at import time
+    (`from anyio.to_thread import run_sync`), so we patch any such copy too. Everything is
+    restored afterwards, so the backend's own pytest process isn't left patched.
     """
+    try:
+        import anyio.to_thread as to_thread
+    except ImportError:  # no anyio installed: nothing to patch
+        yield
+        return
 
-    async def _inline(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        return func(*args, **kwargs)
+    original = to_thread.run_sync
 
-    for name in (
-        "starlette.concurrency",
-        "fastapi.concurrency",
-        "fastapi.routing",
-        "fastapi.dependencies.utils",
-    ):
-        mod = __import__(name, fromlist=["_"])
-        if hasattr(mod, "run_in_threadpool"):
-            mod.run_in_threadpool = _inline  # type: ignore[attr-defined]
+    async def run_sync(func: Callable[..., Any], *args: Any, **_: Any) -> Any:
+        return func(*args)  # ignores limiter/cancellation options: there's only one thread
+
+    copies = [
+        m
+        for m in list(sys.modules.values())
+        if m is not None and m is not to_thread and getattr(m, "run_sync", None) is original
+    ]
+    to_thread.run_sync = run_sync  # type: ignore[assignment]
+    for m in copies:
+        m.run_sync = run_sync  # type: ignore[attr-defined]
+    try:
+        yield
+    finally:
+        to_thread.run_sync = original  # type: ignore[assignment]
+        for m in copies:
+            m.run_sync = original  # type: ignore[attr-defined]
 
 
 def collect_tests(namespace: dict[str, Any]) -> list[tuple[str, Callable[..., Any]]]:
@@ -142,8 +158,11 @@ async def run_tests(
     """Run `test_code` against `user_code`. Never raises for player mistakes; everything
     ends up in the returned report (a JSON-ready dict)."""
     packages = packages or []
-    if "fastapi" in packages:
-        install_fastapi_shim()
+    with inline_threads() if "fastapi" in packages else nullcontext():
+        return await _run(user_code, test_code)
+
+
+async def _run(user_code: str, test_code: str) -> dict[str, Any]:
     sources = {SOLUTION_FILE: user_code, TESTS_FILE: test_code}
     report: dict[str, Any] = {"setup_error": None, "setup_stdout": "", "tests": []}
 

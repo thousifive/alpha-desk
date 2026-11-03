@@ -14,12 +14,16 @@ package and wheels from `cdn.jsdelivr.net/pyodide/v314.0.7/full/`.
 
 ## FastAPI shim
 Starlette runs sync endpoints and sync dependencies through `anyio.to_thread`, which fails
-with `RuntimeError: can't start new thread`. Replacing `run_in_threadpool` with an inline
-coroutine in `starlette.concurrency`, `fastapi.routing`, `fastapi.dependencies.utils` and
-`fastapi.concurrency` fixes it. After that, sync deps, `HTTPException` and `BackgroundTasks`
-work through `httpx.AsyncClient(transport=httpx.ASGITransport(app=app))`.
+with `RuntimeError: can't start new thread`. The first shim (patching `run_in_threadpool`)
+missed sync `yield` dependencies, which go through `contextmanager_in_threadpool`. The final
+version patches `anyio.to_thread.run_sync` itself (every caller looks it up at call time),
+scoped to one harness run and restored afterwards. Sync deps, `yield` deps, `HTTPException`
+and `BackgroundTasks` then all work through
+`httpx.AsyncClient(transport=httpx.ASGITransport(app=app))`.
 
-The harness applies the shim automatically when an exercise lists `fastapi` in `packages`.
+The harness applies it automatically when an exercise lists `fastapi` in `packages`.
+Every Python exercise is validated in both runtimes: `tests/test_python_content.py`
+(CPython) and a Node + Pyodide run of the same harness.
 Exercise tests must use `httpx.AsyncClient` + `ASGITransport` (async tests), not `TestClient`.
 
 ## Version skew
