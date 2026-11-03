@@ -2,7 +2,8 @@ from fastapi import APIRouter
 
 from app.auth import AuthRequired
 from app.deps import ContentDep, SessionDep, SettingsDep
-from app.game.service import get_user, level_out, next_boss, passed_slugs
+from app.game.daily import active_days, streak_out, streak_state
+from app.game.service import get_user, level_out, local_today, next_boss, passed_slugs
 from app.game.unlocks import node_states, playable_exercise_slugs
 from app.schemas import ProgressOut
 
@@ -25,6 +26,9 @@ async def get_progress(
     return ProgressOut(
         xp_total=user.xp_total,
         level=level_out(user.xp_total, content),
+        streak=streak_out(
+            streak_state(await active_days(session), local_today(user), content), content
+        ),
         passed_exercises=len(passed & playable),
         playable_exercises=len(playable),
         mastered_nodes=sum(st.state == "mastered" for st in states.values()),

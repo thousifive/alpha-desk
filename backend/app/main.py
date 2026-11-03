@@ -9,7 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import get_settings
 from app.content.loader import get_content, sync_content
 from app.db import dispose_engine, get_sessionmaker
-from app.routers import auth, branches, datasets, exercises, progress
+from app.routers import auth, branches, datasets, exercises, progress, quests
 
 
 # lifespan replaces the old @app.on_event("startup"/"shutdown") hooks: code before
@@ -35,7 +35,14 @@ def create_app() -> FastAPI:
         same_site="lax",  # sent on top-level navigations, not cross-site subrequests (CSRF guard)
         https_only=settings.secure_cookies,
     )
-    for r in (auth.router, progress.router, branches.router, exercises.router, datasets.router):
+    for r in (
+        auth.router,
+        progress.router,
+        branches.router,
+        exercises.router,
+        datasets.router,
+        quests.router,
+    ):
         app.include_router(r)
 
     @app.get("/api/health")

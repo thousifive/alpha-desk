@@ -9,16 +9,25 @@ from app.content.schema import (
     ContentBundle,
     ExerciseDef,
     NodeDef,
+    PythonExercise,
     QuizExercise,
     SqlExercise,
 )
 from app.deps import ContentDep, SessionDep, SettingsDep
+from app.game.daily import (
+    active_days,
+    award_streak_milestone,
+    complete_quest_item,
+    streak_out,
+    streak_state,
+)
 from app.game.service import award_xp, get_user, level_out, local_today, passed_slugs
 from app.game.unlocks import is_mastered, node_states
 from app.game.xp import xp_for_attempt
+from app.grading.python import ReportedTest, declared_test_names, grade_python_report
 from app.grading.sql import ResultSet, compare_result_sets, expected_result
 from app.models import Attempt
-from app.schemas import AttemptIn, AttemptOut, ExerciseOut
+from app.schemas import AttemptIn, AttemptOut, ExerciseOut, HiddenTestsOut
 
 router = APIRouter(prefix="/api/exercises", tags=["exercises"])
 
@@ -61,7 +70,7 @@ async def get_exercise(
         persona=ex.persona,
         difficulty=ex.difficulty,
         prompt_md=ex.prompt,
-        starter_code=ex.starter_code if isinstance(ex, SqlExercise) else "",
+        starter_code=ex.starter_code if isinstance(ex, SqlExercise | PythonExercise) else "",
         choices=list(ex.choices) if isinstance(ex, QuizExercise) else [],
         branch_id=loc.branch.id,
         node_slug=loc.node.slug,
@@ -69,7 +78,34 @@ async def get_exercise(
         node_state=state,
         passed=ex.slug in passed,
         next_slug=siblings[loc.index + 1].slug if loc.index + 1 < len(siblings) else None,
+        visible_tests=ex.visible_tests if isinstance(ex, PythonExercise) else "",
+        packages=list(ex.packages) if isinstance(ex, PythonExercise) else [],
+        timeout_s=ex.timeout_s if isinstance(ex, PythonExercise) else 10,
     )
+
+
+async def _require_open(
+    loc: _Located, session: SessionDep, content: ContentBundle, milestone: str
+) -> set[str]:
+    passed = await passed_slugs(session)
+    state = node_states(content, passed, milestone)[loc.node.slug].state
+    if state in ("locked", "coming_soon"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Node is {state}")
+    return passed
+
+
+# POST, not GET: it's fetched only when the player hits Submit, and a POST isn't prefetched,
+# cached by the browser, or casually opened in a tab. It hides the tests from the exercise
+# payload, not from a determined player; see app/grading/python.py for the trust model.
+@router.post("/{slug}/test-bundle", response_model=HiddenTestsOut)
+async def get_test_bundle(
+    slug: str, _: AuthRequired, session: SessionDep, content: ContentDep, settings: SettingsDep
+) -> HiddenTestsOut:
+    loc = _locate(content, slug)
+    if not isinstance(loc.exercise, PythonExercise):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No tests for this exercise")
+    await _require_open(loc, session, content, settings.current_milestone)
+    return HiddenTestsOut(hidden_tests=loc.exercise.hidden_tests)
 
 
 @router.post("/{slug}/attempts", response_model=AttemptOut)
@@ -83,10 +119,7 @@ async def submit_attempt(
 ) -> AttemptOut:
     loc = _locate(content, slug)
     ex = loc.exercise
-    passed_before = await passed_slugs(session)
-    state = node_states(content, passed_before, settings.current_milestone)[loc.node.slug].state
-    if state in ("locked", "coming_soon"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Node is {state}")
+    passed_before = await _require_open(loc, session, content, settings.current_milestone)
 
     prior = (await session.exec(select(Attempt).where(Attempt.exercise_slug == slug))).all()
     first_try = len(prior) == 0
@@ -113,6 +146,18 @@ async def submit_attempt(
             passed = body.choice == ex.answer
             feedback = "Correct." if passed else "Not quite."
             explanation = ex.explanation
+        case PythonExercise():
+            if body.tests is None:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Missing tests")
+            try:
+                grade = grade_python_report(
+                    declared_test_names(ex.hidden_tests),
+                    [ReportedTest(name=t.name, passed=t.passed) for t in body.tests],
+                )
+            except NotImplementedError as e:
+                raise _todo_501(e) from e
+            passed = grade.passed
+            feedback = "All hidden tests pass. Ship it." if passed else grade.reason
         case _:
             raise HTTPException(status.HTTP_409_CONFLICT, "Exercise type not playable yet")
 
@@ -156,6 +201,16 @@ async def submit_attempt(
             local_date=today,
         )
     )
+
+    quest = None
+    streak = None
+    streak_xp = 0
+    if passed:
+        quest = await complete_quest_item(session, user, content, slug, today)
+        # Today counts as active from this attempt on (it isn't flushed to the DB yet).
+        state = streak_state(await active_days(session) | {today}, today, content)
+        streak_xp = await award_streak_milestone(session, user, state, content, today)
+        streak = streak_out(state, content)
     await session.commit()
 
     return AttemptOut(
@@ -168,4 +223,9 @@ async def submit_attempt(
         already_passed=already_passed,
         level_before=level_before,
         level_after=level_out(user.xp_total, content),
+        quest_position=quest.completed_position if quest else None,
+        quest_xp=quest.xp if quest else 0,
+        quests_all_done=quest.all_done if quest else False,
+        streak_xp=streak_xp,
+        streak=streak,
     )

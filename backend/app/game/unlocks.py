@@ -12,6 +12,7 @@ from app.content.schema import BranchDef, ContentBundle, NodeDef
 
 NodeState = Literal["locked", "available", "mastered", "coming_soon"]
 MILESTONE_ORDER = ("M1", "M2", "M3", "M4", "M5", "M6")
+PLAYABLE_TYPES = frozenset({"sql", "quiz", "python"})  # "review" arrives in a later milestone
 
 
 def branch_playable(branch: BranchDef, current_milestone: str) -> bool:
@@ -19,7 +20,7 @@ def branch_playable(branch: BranchDef, current_milestone: str) -> bool:
 
 
 def playable_exercise_slugs(node: NodeDef) -> list[str]:
-    return [ex.slug for ex in node.exercises if ex.type in ("sql", "quiz")]
+    return [ex.slug for ex in node.exercises if ex.type in PLAYABLE_TYPES]
 
 
 def is_mastered(node: NodeDef, passed: set[str]) -> bool:

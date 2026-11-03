@@ -1,6 +1,7 @@
 """Public API shapes (Pydantic v2). Kept apart from tables in models.py so hidden columns
 (Exercise.spec) can't leak by accident: a response model only serializes its own fields."""
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -39,10 +40,44 @@ class BossOut(BaseModel):
     description: str
 
 
+class StreakOut(BaseModel):
+    current: int
+    best: int
+    freezes: int
+    max_freezes: int
+    active_today: bool
+    next_milestone: int
+
+
+class QuestItemOut(BaseModel):
+    position: int
+    slug: str
+    title: str
+    type: str
+    persona: str
+    difficulty: int
+    branch_id: str
+    branch_title: str
+    node_title: str
+    minutes: int
+    completed: bool
+
+
+class QuestOut(BaseModel):
+    day: date
+    items: list[QuestItemOut]
+    xp_per_quest: int
+    all_done_bonus: int
+    done: bool
+    est_minutes: int
+
+
 class ProgressOut(BaseModel):
     xp_total: int
     # None until TODO(me) #1 (level_for_xp) is implemented; the UI shows a notice.
     level: LevelOut | None
+    # None until TODO(me) M2-1 (compute_streak) is implemented.
+    streak: StreakOut | None
     passed_exercises: int
     playable_exercises: int
     mastered_nodes: int
@@ -102,6 +137,14 @@ class ExerciseOut(BaseModel):
     node_state: NodeStateT
     passed: bool
     next_slug: str | None  # next exercise in the same node, for "Next ticket" flow
+    # python only. Hidden tests are deliberately absent: see POST /test-bundle.
+    visible_tests: str = ""
+    packages: list[str] = []
+    timeout_s: float = 10
+
+
+class HiddenTestsOut(BaseModel):
+    hidden_tests: str
 
 
 class SqlResult(BaseModel):
@@ -109,10 +152,16 @@ class SqlResult(BaseModel):
     rows: list[list[Cell]] = Field(max_length=MAX_RESULT_ROWS)
 
 
+class ReportedTestIn(BaseModel):
+    name: str = Field(max_length=200)
+    passed: bool
+
+
 class AttemptIn(BaseModel):
     code: str = Field(default="", max_length=20_000)
     result: SqlResult | None = None  # sql exercises
     choice: int | None = None  # quiz exercises
+    tests: list[ReportedTestIn] | None = Field(default=None, max_length=200)  # python exercises
     duration_ms: int = Field(default=0, ge=0)
     hints_used: int = Field(default=0, ge=0, le=3)
 
@@ -127,3 +176,8 @@ class AttemptOut(BaseModel):
     already_passed: bool
     level_before: LevelOut | None
     level_after: LevelOut | None
+    quest_position: int | None = None  # which of today's quests this closed, if any
+    quest_xp: int = 0  # quest XP + all-done bonus paid by this attempt
+    quests_all_done: bool = False
+    streak_xp: int = 0
+    streak: StreakOut | None = None
