@@ -1,5 +1,5 @@
 import Editor, { type OnMount } from '@monaco-editor/react'
-import { useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
 import { monaco } from '../../lib/monaco'
 
@@ -15,8 +15,10 @@ export function SqlEditor({ value, onChange, onRun, onSubmit }: Props) {
   // callbacks without re-registering (which would stack duplicate bindings).
   const runRef = useRef(onRun)
   const submitRef = useRef(onSubmit)
-  runRef.current = onRun
-  submitRef.current = onSubmit
+  useLayoutEffect(() => {
+    runRef.current = onRun
+    submitRef.current = onSubmit
+  })
 
   const onMount: OnMount = (editor) => {
     const { KeyMod, KeyCode } = monaco
