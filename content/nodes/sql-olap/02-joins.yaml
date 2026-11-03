@@ -1,0 +1,60 @@
+slug: joins
+title: Joins
+description: Combine prices, reference data, and positions. INNER vs LEFT, and anti-joins for data quality.
+order: 2
+prerequisites: [select-filter]
+xp_reward: 50
+exercises:
+  - slug: sql-close-with-sector
+    type: sql
+    persona: priya
+    title: Year-end closes by sector
+    difficulty: 1
+    prompt: |
+      For the year-end deck I need **every name's close on 2025-12-31 next to its sector**.
+
+      Columns: `ticker`, `sector`, `close`.
+    solution_sql: |
+      SELECT p.ticker, t.sector, p.close
+      FROM prices p
+      JOIN tickers t USING (ticker)
+      WHERE p.date = DATE '2025-12-31'
+
+  - slug: sql-position-market-value
+    type: sql
+    persona: marcus
+    title: Mark the book
+    difficulty: 2
+    prompt: |
+      Mark every position in the book to market as of **2025-06-30**: quantity times that
+      day's close. Shorts have negative quantity, so their market value is negative too.
+      Biggest market value first.
+
+      Columns: `ticker`, `quantity`, `close`, `market_value`.
+    solution_sql: |
+      SELECT pos.ticker, pos.quantity, p.close, pos.quantity * p.close AS market_value
+      FROM positions pos
+      JOIN prices p ON p.ticker = pos.ticker AND p.date = pos.date
+      WHERE pos.date = DATE '2025-06-30'
+      ORDER BY market_value DESC
+    order_sensitive: true
+    float_tol: 0.0001
+
+  - slug: sql-unpriced-positions
+    type: sql
+    persona: lena
+    title: Positions with no price
+    difficulty: 2
+    prompt: |
+      Our NAV job silently drops positions when the price feed has a gap. Find every
+      **position row (date, ticker) that has no matching row in `prices`**, so we can see
+      how bad it is.
+
+      Columns: `date`, `ticker`, `quantity`.
+
+      *Hint from Lena: an INNER JOIN can't show you what's missing.*
+    solution_sql: |
+      SELECT pos.date, pos.ticker, pos.quantity
+      FROM positions pos
+      LEFT JOIN prices p ON p.ticker = pos.ticker AND p.date = pos.date
+      WHERE p.ticker IS NULL

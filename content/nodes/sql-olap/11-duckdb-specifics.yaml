@@ -1,0 +1,66 @@
+slug: duckdb-specifics
+title: DuckDB Specifics
+description: ASOF joins, PIVOT, QUALIFY, and the planner. The DuckDB toolkit quants love.
+order: 11
+prerequisites: [time-bucketing, row-vs-columnar]
+xp_reward: 80
+exercises:
+  - slug: sql-asof-slippage
+    type: sql
+    persona: lena
+    title: Execution slippage
+    difficulty: 3
+    prompt: |
+      Compare every **2025 trade's fill price** to the **close on the trade date, or the
+      most recent earlier close if that day's price is missing** (our feed has gaps).
+      Slippage in basis points = `(price / close - 1) * 10000`, rounded to 2 decimals.
+
+      Columns: `trade_id`, `ticker`, `trade_date`, `price`, `close`, `slippage_bps`.
+
+      *Lena: DuckDB has a join made exactly for "most recent row at or before".*
+    solution_sql: |
+      SELECT t.trade_id, t.ticker, t.trade_date, t.price, p.close,
+             ROUND((t.price / p.close - 1) * 10000, 2) AS slippage_bps
+      FROM trades t
+      ASOF JOIN prices p ON p.ticker = t.ticker AND p.date <= t.trade_date
+      WHERE t.trade_date >= DATE '2025-01-01'
+    float_tol: 0.01
+
+  - slug: sql-pivot-monthly
+    type: sql
+    persona: priya
+    title: Side-by-side monthly averages
+    difficulty: 2
+    prompt: |
+      I want a table with **one row per month of 2025** and **one column each for QBTX,
+      HLVR and AURX**, holding that month's average close rounded to 2 decimals. Month as a
+      DATE.
+
+      Columns: `month`, `QBTX`, `HLVR`, `AURX`.
+    solution_sql: |
+      WITH m AS (
+        SELECT DATE_TRUNC('month', date)::DATE AS month, ticker, close
+        FROM prices
+        WHERE ticker IN ('QBTX', 'HLVR', 'AURX')
+          AND date BETWEEN DATE '2025-01-01' AND DATE '2025-12-31'
+      )
+      SELECT month, QBTX, HLVR, AURX
+      FROM (PIVOT m ON ticker IN ('QBTX', 'HLVR', 'AURX') USING ROUND(AVG(close), 2) GROUP BY month)
+    float_tol: 0.01
+
+  - slug: quiz-explain-analyze
+    type: quiz
+    persona: lena
+    title: Reading the plan
+    difficulty: 2
+    prompt: What does `EXPLAIN ANALYZE` give you that plain `EXPLAIN` does not?
+    choices:
+      - The SQL rewritten in a canonical form
+      - The query actually runs, and you get real per-operator timings and row counts
+      - A list of indexes you should create
+      - The plan for every possible join order
+    answer: 1
+    explanation: |
+      `EXPLAIN` shows the planned operator tree without running it. `EXPLAIN ANALYZE`
+      executes the query and annotates each operator with real cardinalities and time,
+      which is how you find the actual bottleneck.

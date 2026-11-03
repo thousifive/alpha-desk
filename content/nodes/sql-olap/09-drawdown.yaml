@@ -1,0 +1,87 @@
+slug: drawdown
+title: Cumulative Returns & Drawdown
+description: Running totals, running maxima, and the PM's least favourite number.
+order: 9
+prerequisites: [rolling-windows, ranking]
+xp_reward: 80
+exercises:
+  - slug: sql-cumulative-return
+    type: sql
+    persona: marcus
+    title: URBN cumulative return
+    difficulty: 2
+    prompt: |
+      Cumulative return of **URBN through 2025**, measured from the **first 2025 close**:
+      `close / first_close_of_2025 - 1`, rounded to 6 decimals. The first row should be 0.
+      Order by date.
+
+      Columns: `date`, `cum_ret`.
+    solution_sql: |
+      SELECT date,
+             ROUND(close / FIRST_VALUE(close) OVER (ORDER BY date) - 1, 6) AS cum_ret
+      FROM prices
+      WHERE ticker = 'URBN' AND date BETWEEN DATE '2025-01-01' AND DATE '2025-12-31'
+      ORDER BY date
+    order_sensitive: true
+    float_tol: 0.000001
+
+  - slug: sql-max-drawdown
+    type: sql
+    persona: priya
+    title: Worst drawdowns of 2025
+    difficulty: 3
+    prompt: |
+      I need the **maximum drawdown for every ticker in 2025**: the worst drop from a
+      running peak close to a later close, using only 2025 closes. Express it as a
+      **negative fraction** (e.g. -0.2315) rounded to 4 decimals. Worst first, ties by ticker.
+
+      Columns: `ticker`, `max_drawdown`.
+
+      *Marcus: drawdown on day t = close_t / max(close up to t) - 1. Then take the minimum.*
+    solution_sql: |
+      WITH peaks AS (
+        SELECT ticker, date, close,
+               MAX(close) OVER (PARTITION BY ticker ORDER BY date
+                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS peak
+        FROM prices
+        WHERE date BETWEEN DATE '2025-01-01' AND DATE '2025-12-31'
+      )
+      SELECT ticker, ROUND(MIN(close / peak - 1), 4) AS max_drawdown
+      FROM peaks
+      GROUP BY ticker
+      ORDER BY max_drawdown, ticker
+    order_sensitive: true
+    float_tol: 0.0001
+
+  - slug: sql-book-mv-change
+    type: sql
+    persona: priya
+    title: How did the book move in December?
+    difficulty: 3
+    prompt: |
+      For each trading day of **December 2025**, the book's **net market value** (sum of
+      quantity × close, $ millions) and its **change versus the previous trading day**,
+      including Dec 1 versus the last day of November. Round both to 4 decimals. Order by
+      date.
+
+      Columns: `date`, `net_mv_mm`, `change_mm`.
+
+      *Lena: aggregate first, then window.*
+    solution_sql: |
+      WITH daily AS (
+        SELECT pos.date, SUM(pos.quantity * p.close) / 1e6 AS net_mv_mm
+        FROM positions pos
+        JOIN prices p ON p.ticker = pos.ticker AND p.date = pos.date
+        GROUP BY pos.date
+      ),
+      chg AS (
+        SELECT date, net_mv_mm,
+               net_mv_mm - LAG(net_mv_mm) OVER (ORDER BY date) AS change_mm
+        FROM daily
+      )
+      SELECT date, ROUND(net_mv_mm, 4) AS net_mv_mm, ROUND(change_mm, 4) AS change_mm
+      FROM chg
+      WHERE date >= DATE '2025-12-01'
+      ORDER BY date
+    order_sensitive: true
+    float_tol: 0.0001

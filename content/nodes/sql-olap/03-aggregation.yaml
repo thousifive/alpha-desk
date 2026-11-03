@@ -1,0 +1,86 @@
+slug: aggregation
+title: Aggregation & Exposure
+description: GROUP BY, HAVING, conditional aggregates, and the fund's core exposure numbers.
+order: 3
+prerequisites: [joins]
+xp_reward: 60
+exercises:
+  - slug: sql-avg-volume-by-sector
+    type: sql
+    persona: marcus
+    title: Liquidity by sector
+    difficulty: 1
+    prompt: |
+      Average **daily volume per sector for calendar 2024**, rounded to a whole number.
+
+      Columns: `sector`, `avg_volume`.
+    solution_sql: |
+      SELECT t.sector, ROUND(AVG(p.volume)) AS avg_volume
+      FROM prices p
+      JOIN tickers t USING (ticker)
+      WHERE p.date BETWEEN DATE '2024-01-01' AND DATE '2024-12-31'
+      GROUP BY t.sector
+    float_tol: 0.5
+
+  - slug: sql-gross-net-exposure
+    type: sql
+    persona: priya
+    title: How exposed are we?
+    difficulty: 2
+    prompt: |
+      Risk is asking for our **gross and net exposure on 2025-12-31**, in **$ millions,
+      rounded to 2 decimals**.
+
+      - Gross = sum of the absolute market values
+      - Net = sum of the signed market values (longs minus shorts)
+
+      Columns: `gross_mm`, `net_mm`.
+    solution_sql: |
+      SELECT
+        ROUND(SUM(ABS(pos.quantity * p.close)) / 1e6, 2) AS gross_mm,
+        ROUND(SUM(pos.quantity * p.close) / 1e6, 2)      AS net_mm
+      FROM positions pos
+      JOIN prices p ON p.ticker = pos.ticker AND p.date = pos.date
+      WHERE pos.date = DATE '2025-12-31'
+    float_tol: 0.01
+
+  - slug: sql-sector-exposure
+    type: sql
+    persona: priya
+    title: Exposure by sector
+    difficulty: 2
+    prompt: |
+      Same date (**2025-12-31**), but break it down **by sector**: long, short, and net
+      market value, all in **$ millions rounded to 2 decimals**. Show the short side as a
+      positive number. Only sectors where we hold something.
+
+      Columns: `sector`, `long_mm`, `short_mm`, `net_mm`.
+    solution_sql: |
+      SELECT
+        t.sector,
+        ROUND(COALESCE(SUM(pos.quantity * p.close) FILTER (WHERE pos.quantity > 0), 0) / 1e6, 2) AS long_mm,
+        ROUND(COALESCE(-SUM(pos.quantity * p.close) FILTER (WHERE pos.quantity < 0), 0) / 1e6, 2) AS short_mm,
+        ROUND(SUM(pos.quantity * p.close) / 1e6, 2) AS net_mm
+      FROM positions pos
+      JOIN prices p ON p.ticker = pos.ticker AND p.date = pos.date
+      JOIN tickers t ON t.ticker = pos.ticker
+      WHERE pos.date = DATE '2025-12-31'
+      GROUP BY t.sector
+    float_tol: 0.01
+
+  - slug: sql-busy-traders
+    type: sql
+    persona: lena
+    title: Who's trading the most?
+    difficulty: 2
+    prompt: |
+      Compliance wants the traders with **more than 80 trades** in total, with their
+      trade count and total traded notional (quantity × price) in **$ millions, 2 decimals**.
+
+      Columns: `trader`, `n_trades`, `notional_mm`.
+    solution_sql: |
+      SELECT trader, COUNT(*) AS n_trades, ROUND(SUM(quantity * price) / 1e6, 2) AS notional_mm
+      FROM trades
+      GROUP BY trader
+      HAVING COUNT(*) > 80
+    float_tol: 0.01

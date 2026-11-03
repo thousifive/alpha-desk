@@ -1,0 +1,62 @@
+slug: row-vs-columnar
+title: Row vs Columnar Storage
+description: Why analytical engines store data by column, and what that buys you.
+order: 10
+prerequisites: [aggregation]
+xp_reward: 50
+exercises:
+  - slug: quiz-columnar-scan
+    type: quiz
+    persona: marcus
+    title: Why is this so fast?
+    difficulty: 1
+    prompt: |
+      `SELECT AVG(close) FROM prices` takes milliseconds in DuckDB but crawls on our old
+      Postgres replica with billions of rows. What's the **main** reason?
+    choices:
+      - DuckDB caches every query result in memory
+      - A columnar engine reads only the `close` column, compressed, and processes it in vectorized batches
+      - Postgres doesn't support the AVG function on doubles
+      - DuckDB samples the table instead of reading all rows
+    answer: 1
+    explanation: |
+      Column stores keep each column contiguous, so an aggregate over one column reads a
+      fraction of the bytes. Same-type columns compress well, and vectorized execution
+      processes thousands of values per CPU instruction loop. A row store reads every
+      column of every row to get at `close`.
+
+  - slug: quiz-row-store-workload
+    type: quiz
+    persona: lena
+    title: Pick the right engine
+    difficulty: 1
+    prompt: Which workload is a **better fit for a row-oriented database** like Postgres?
+    choices:
+      - Computing 3-year rolling volatility across 5,000 tickers
+      - Booking and amending individual trades with transactional guarantees
+      - Scanning a year of tick data to build minute bars
+      - Ad-hoc GROUP BY sector over all historical positions
+    answer: 1
+    explanation: |
+      OLTP work (single-record inserts and updates with ACID transactions, like a trade
+      booking system) suits row stores: one row's fields sit together on disk. The other
+      three are scan-heavy analytics, which is OLAP territory.
+
+  - slug: quiz-parquet-pruning
+    type: quiz
+    persona: marcus
+    title: Skipping data in Parquet
+    difficulty: 2
+    prompt: |
+      A query filters `WHERE date = '2025-12-31'` on a 10 GB Parquet file sorted by date,
+      yet DuckDB reads only a few MB. What makes that possible?
+    choices:
+      - Parquet stores min/max statistics per row group, so non-matching row groups are skipped
+      - DuckDB builds a B-tree index on every Parquet file it opens
+      - Parquet files are encrypted per column, so only one column is decrypted
+      - The OS page cache already held the file
+    answer: 0
+    explanation: |
+      Each Parquet row group carries min/max stats per column. With data sorted by date,
+      only row groups whose range contains the target date can match, and the engine
+      skips the rest. This is predicate pushdown (zone-map pruning).

@@ -1,0 +1,60 @@
+slug: clickhouse-intro
+title: ClickHouse Intro
+description: When a fund outgrows an in-process engine. MergeTree, sort keys, and dialect differences.
+order: 12
+prerequisites: [duckdb-specifics]
+xp_reward: 80
+exercises:
+  - slug: quiz-mergetree-order-by
+    type: quiz
+    persona: lena
+    title: What does ORDER BY do in MergeTree?
+    difficulty: 2
+    prompt: |
+      In `CREATE TABLE prices (...) ENGINE = MergeTree ORDER BY (ticker, date)`, what does
+      the `ORDER BY` clause control?
+    choices:
+      - The default sort order of SELECT results
+      - The on-disk sort key and the sparse primary index used to skip data on filters
+      - Which column gets a unique constraint
+      - The order in which replicas are queried
+    answer: 1
+    explanation: |
+      In MergeTree, `ORDER BY` defines how data is sorted within each part and builds a
+      sparse primary index over those keys. Filters on a prefix of the key (e.g.
+      `ticker = 'QBTX'`) skip most granules. It does **not** sort your query results.
+
+  - slug: quiz-clickhouse-vs-duckdb
+    type: quiz
+    persona: marcus
+    title: DuckDB or ClickHouse?
+    difficulty: 1
+    prompt: When would you reach for **ClickHouse instead of DuckDB**?
+    choices:
+      - A single analyst exploring a 2 GB Parquet file on a laptop
+      - Unit tests for a Polars pipeline
+      - A shared server ingesting live market ticks while dozens of users query it at once
+      - Running SQL inside the browser
+    answer: 2
+    explanation: |
+      DuckDB is an in-process engine: great for one process, a notebook, or a pipeline
+      step. ClickHouse is a distributed server built for continuous ingestion and many
+      concurrent users.
+
+  - slug: sql-arg-max-latest-close
+    type: sql
+    persona: marcus
+    title: Latest close, the argMax way
+    difficulty: 1
+    prompt: |
+      In ClickHouse you'd write `argMax(close, date)`. DuckDB spells it `arg_max`. Use it
+      to get **each ticker's most recent close** in one GROUP BY, with no window or join.
+      Order by ticker.
+
+      Columns: `ticker`, `last_close`.
+    solution_sql: |
+      SELECT ticker, ARG_MAX(close, date) AS last_close
+      FROM prices
+      GROUP BY ticker
+      ORDER BY ticker
+    order_sensitive: true

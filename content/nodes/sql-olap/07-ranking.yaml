@@ -1,0 +1,67 @@
+slug: ranking
+title: Ranking
+description: ROW_NUMBER, RANK, DENSE_RANK, NTILE, and filtering on them with QUALIFY.
+order: 7
+prerequisites: [window-lag]
+xp_reward: 70
+exercises:
+  - slug: sql-best-in-sector
+    type: sql
+    persona: priya
+    title: Sector champions
+    difficulty: 2
+    prompt: |
+      For the year-end letter: the **best-performing stock in each sector in 2025**, using
+      first-to-last close return in percent, rounded to 2 decimals.
+
+      Columns: `sector`, `ticker`, `ret_pct`.
+    solution_sql: |
+      WITH y AS (
+        SELECT ticker,
+               (ARG_MAX(close, date) / ARG_MIN(close, date) - 1) * 100 AS ret_pct
+        FROM prices
+        WHERE date BETWEEN DATE '2025-01-01' AND DATE '2025-12-31'
+        GROUP BY ticker
+      )
+      SELECT t.sector, y.ticker, ROUND(y.ret_pct, 2) AS ret_pct
+      FROM y
+      JOIN tickers t USING (ticker)
+      QUALIFY ROW_NUMBER() OVER (PARTITION BY t.sector ORDER BY y.ret_pct DESC) = 1
+    float_tol: 0.01
+
+  - slug: sql-top-volume-per-sector
+    type: sql
+    persona: marcus
+    title: Most traded names per sector
+    difficulty: 2
+    prompt: |
+      Rank tickers by **total 2025 volume within their sector** using `DENSE_RANK` (highest
+      volume = 1) and keep the **top 2 per sector**.
+
+      Columns: `sector`, `ticker`, `total_volume`, `vol_rank`.
+    solution_sql: |
+      WITH v AS (
+        SELECT t.sector, p.ticker, SUM(p.volume) AS total_volume
+        FROM prices p
+        JOIN tickers t USING (ticker)
+        WHERE p.date BETWEEN DATE '2025-01-01' AND DATE '2025-12-31'
+        GROUP BY t.sector, p.ticker
+      )
+      SELECT sector, ticker, total_volume,
+             DENSE_RANK() OVER (PARTITION BY sector ORDER BY total_volume DESC) AS vol_rank
+      FROM v
+      QUALIFY vol_rank <= 2
+
+  - slug: sql-momentum-quintiles
+    type: sql
+    persona: marcus
+    title: Momentum quintiles
+    difficulty: 1
+    prompt: |
+      Bucket every ticker into **momentum quintiles** from the `factors` table with
+      `NTILE(5)`, where quintile 1 holds the **highest** momentum.
+
+      Columns: `ticker`, `momentum`, `quintile`.
+    solution_sql: |
+      SELECT ticker, momentum, NTILE(5) OVER (ORDER BY momentum DESC) AS quintile
+      FROM factors

@@ -1,0 +1,75 @@
+slug: time-bucketing
+title: Time-Series Bucketing
+description: Resample daily data into weeks and months with date_trunc and ordered aggregates.
+order: 8
+prerequisites: [window-lag]
+xp_reward: 70
+exercises:
+  - slug: sql-monthly-ohlc
+    type: sql
+    persona: marcus
+    title: Monthly bars for CRVN
+    difficulty: 2
+    prompt: |
+      Build **monthly OHLCV bars for CRVN in 2025**:
+
+      - `month`: first day of the month, **as a DATE** (`date_trunc` returns a timestamp)
+      - `open`: the first trading day's open, `close`: the last trading day's close
+      - `high` / `low`: the extremes of the month, `volume`: the total
+
+      Order by month.
+
+      Columns: `month`, `open`, `high`, `low`, `close`, `volume`.
+    solution_sql: |
+      SELECT DATE_TRUNC('month', date)::DATE AS month,
+             ARG_MIN(open, date)  AS open,
+             MAX(high)            AS high,
+             MIN(low)             AS low,
+             ARG_MAX(close, date) AS close,
+             SUM(volume)          AS volume
+      FROM prices
+      WHERE ticker = 'CRVN' AND date BETWEEN DATE '2025-01-01' AND DATE '2025-12-31'
+      GROUP BY month
+      ORDER BY month
+    order_sensitive: true
+
+  - slug: sql-weekly-avg-close
+    type: sql
+    persona: priya
+    title: Weekly view of SOLR
+    difficulty: 1
+    prompt: |
+      Daily charts are too noisy for the board. Give me **SOLR's average close per week in
+      Q4 2025** (Oct 1 to Dec 31). Weeks start on Monday. Use the Monday as a DATE and
+      round the average to 2 decimals. Order by week.
+
+      Columns: `week`, `avg_close`.
+    solution_sql: |
+      SELECT DATE_TRUNC('week', date)::DATE AS week, ROUND(AVG(close), 2) AS avg_close
+      FROM prices
+      WHERE ticker = 'SOLR' AND date BETWEEN DATE '2025-10-01' AND DATE '2025-12-31'
+      GROUP BY week
+      ORDER BY week
+    order_sensitive: true
+    float_tol: 0.01
+
+  - slug: sql-monthly-trading-activity
+    type: sql
+    persona: lena
+    title: Trading activity by month
+    difficulty: 1
+    prompt: |
+      For the 2024 ops review: **number of trades and traded notional ($ millions, 2
+      decimals) per month of 2024**. Month as a DATE (first of month), in order.
+
+      Columns: `month`, `n_trades`, `notional_mm`.
+    solution_sql: |
+      SELECT DATE_TRUNC('month', trade_date)::DATE AS month,
+             COUNT(*) AS n_trades,
+             ROUND(SUM(quantity * price) / 1e6, 2) AS notional_mm
+      FROM trades
+      WHERE trade_date BETWEEN DATE '2024-01-01' AND DATE '2024-12-31'
+      GROUP BY month
+      ORDER BY month
+    order_sensitive: true
+    float_tol: 0.01

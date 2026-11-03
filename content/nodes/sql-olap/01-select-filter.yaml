@@ -1,0 +1,65 @@
+slug: select-filter
+title: Select & Filter
+description: Warm-up on the Meridian market tables. SELECT, WHERE, ORDER BY, LIMIT.
+order: 1
+prerequisites: []
+xp_reward: 50
+exercises:
+  - slug: sql-first-look
+    type: sql
+    persona: marcus
+    title: Latest QBTX closes
+    difficulty: 1
+    prompt: |
+      Hey, welcome aboard. Quick one to get you into the data: give me the **10 most recent
+      closing prices for QBTX**, newest first.
+
+      Columns: `date`, `close`.
+    starter_code: |
+      SELECT *
+      FROM prices
+      LIMIT 5;
+    solution_sql: |
+      SELECT date, close
+      FROM prices
+      WHERE ticker = 'QBTX'
+      ORDER BY date DESC
+      LIMIT 10
+    order_sensitive: true
+
+  - slug: sql-tech-roster
+    type: sql
+    persona: priya
+    title: Who's in tech?
+    difficulty: 1
+    prompt: |
+      I'm in a meeting in five minutes. Which **Technology** companies do we cover? Just the
+      ticker and company name, sorted by ticker.
+
+      Columns: `ticker`, `name`.
+    starter_code: |
+      SELECT *
+      FROM tickers;
+    solution_sql: |
+      SELECT ticker, name
+      FROM tickers
+      WHERE sector = 'Technology'
+      ORDER BY ticker
+    order_sensitive: true
+
+  - slug: sql-heavy-volume-days
+    type: sql
+    persona: marcus
+    title: Heavy volume in GMRX
+    difficulty: 1
+    prompt: |
+      Something's going on with GMRX. Pull every day in **2025** where it traded **more than
+      1,500,000 shares**.
+
+      Columns: `date`, `volume`.
+    solution_sql: |
+      SELECT date, volume
+      FROM prices
+      WHERE ticker = 'GMRX'
+        AND date >= DATE '2025-01-01' AND date < DATE '2026-01-01'
+        AND volume > 1500000

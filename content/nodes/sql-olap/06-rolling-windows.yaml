@@ -1,0 +1,92 @@
+slug: rolling-windows
+title: Rolling Windows
+description: Moving averages and rolling volatility with ROWS BETWEEN frames.
+order: 6
+prerequisites: [window-lag]
+xp_reward: 70
+exercises:
+  - slug: sql-ma20-december
+    type: sql
+    persona: marcus
+    title: PXLR 20-day moving average
+    difficulty: 2
+    prompt: |
+      For **PXLR during December 2025**, show the close and its **20-day moving average**
+      (the current row plus the 19 previous trading rows, which reach back into November).
+      Round the MA to 2 decimals. Order by date.
+
+      Columns: `date`, `close`, `ma20`.
+    solution_sql: |
+      WITH m AS (
+        SELECT date, close,
+               AVG(close) OVER (ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS ma20
+        FROM prices
+        WHERE ticker = 'PXLR'
+      )
+      SELECT date, close, ROUND(ma20, 2) AS ma20
+      FROM m
+      WHERE date >= DATE '2025-12-01'
+      ORDER BY date
+    order_sensitive: true
+    float_tol: 0.01
+
+  - slug: sql-rolling-vol
+    type: sql
+    persona: marcus
+    title: Who's the most volatile right now?
+    difficulty: 3
+    prompt: |
+      For every ticker, its **annualized 21-day realized volatility as of 2025-12-31**:
+
+      1. daily return = `close / previous close - 1`
+      2. sample standard deviation (`STDDEV_SAMP`) of the **last 21 daily returns**
+         (`ROWS BETWEEN 20 PRECEDING AND CURRENT ROW`)
+      3. multiply by `SQRT(252)`, round to 4 decimals
+
+      Most volatile first; break ties by ticker.
+
+      Columns: `ticker`, `vol_21d`.
+    solution_sql: |
+      WITH r AS (
+        SELECT ticker, date,
+               close / LAG(close) OVER (PARTITION BY ticker ORDER BY date) - 1 AS ret
+        FROM prices
+      ),
+      v AS (
+        SELECT ticker, date,
+               STDDEV_SAMP(ret) OVER (
+                 PARTITION BY ticker ORDER BY date ROWS BETWEEN 20 PRECEDING AND CURRENT ROW
+               ) * SQRT(252) AS vol
+        FROM r
+      )
+      SELECT ticker, ROUND(vol, 4) AS vol_21d
+      FROM v
+      WHERE date = DATE '2025-12-31'
+      ORDER BY vol_21d DESC, ticker
+    order_sensitive: true
+    float_tol: 0.0001
+
+  - slug: sql-golden-cross
+    type: sql
+    persona: priya
+    title: Golden crosses
+    difficulty: 2
+    prompt: |
+      A client asked which names are in a **"golden cross"**: the 50-day moving average is
+      above the 200-day moving average. As of **2025-12-31**, list them with both averages
+      (row-based windows, rounded to 2 decimals).
+
+      Columns: `ticker`, `ma50`, `ma200`.
+    solution_sql: |
+      WITH m AS (
+        SELECT ticker, date,
+               AVG(close) OVER w50  AS ma50,
+               AVG(close) OVER w200 AS ma200
+        FROM prices
+        WINDOW w50  AS (PARTITION BY ticker ORDER BY date ROWS BETWEEN 49 PRECEDING AND CURRENT ROW),
+               w200 AS (PARTITION BY ticker ORDER BY date ROWS BETWEEN 199 PRECEDING AND CURRENT ROW)
+      )
+      SELECT ticker, ROUND(ma50, 2) AS ma50, ROUND(ma200, 2) AS ma200
+      FROM m
+      WHERE date = DATE '2025-12-31' AND ma50 > ma200
+    float_tol: 0.01

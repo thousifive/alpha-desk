@@ -1,0 +1,82 @@
+slug: ctes
+title: CTEs
+description: Break big questions into named steps with WITH. Readable, testable SQL.
+order: 4
+prerequisites: [aggregation]
+xp_reward: 60
+exercises:
+  - slug: sql-cte-yearly-return
+    type: sql
+    persona: marcus
+    title: 2025 scorecard
+    difficulty: 2
+    prompt: |
+      For every ticker, give me its **first and last close in 2025** and the **year's
+      return in percent** (`(last / first - 1) * 100`), rounded to 2 decimals.
+
+      Columns: `ticker`, `first_close`, `last_close`, `ret_pct`.
+    solution_sql: |
+      WITH y AS (
+        SELECT ticker, MIN(date) AS d0, MAX(date) AS d1
+        FROM prices
+        WHERE date BETWEEN DATE '2025-01-01' AND DATE '2025-12-31'
+        GROUP BY ticker
+      )
+      SELECT y.ticker,
+             p0.close AS first_close,
+             p1.close AS last_close,
+             ROUND((p1.close / p0.close - 1) * 100, 2) AS ret_pct
+      FROM y
+      JOIN prices p0 ON p0.ticker = y.ticker AND p0.date = y.d0
+      JOIN prices p1 ON p1.ticker = y.ticker AND p1.date = y.d1
+    float_tol: 0.01
+
+  - slug: sql-cte-price-gaps
+    type: sql
+    persona: lena
+    title: Find the feed gaps
+    difficulty: 3
+    prompt: |
+      The vendor swears their feed is complete. Prove them wrong. Find every **(date,
+      ticker) where the ticker was already listed but has no price row**. Treat any date
+      that appears in `prices` as a trading day. `tickers.listed_on` says when each name
+      started trading.
+
+      Columns: `date`, `ticker`.
+    solution_sql: |
+      WITH calendar AS (
+        SELECT DISTINCT date FROM prices
+      ),
+      expected AS (
+        SELECT c.date, t.ticker
+        FROM calendar c
+        CROSS JOIN tickers t
+        WHERE c.date >= t.listed_on
+      )
+      SELECT e.date, e.ticker
+      FROM expected e
+      LEFT JOIN prices p ON p.date = e.date AND p.ticker = e.ticker
+      WHERE p.ticker IS NULL
+
+  - slug: sql-cte-top5-concentration
+    type: sql
+    persona: priya
+    title: Are we too concentrated?
+    difficulty: 2
+    prompt: |
+      What **percentage of our gross exposure sits in our five largest positions** (by
+      absolute market value) on **2025-12-31**? Round to 2 decimals.
+
+      Columns: `top5_pct`.
+    solution_sql: |
+      WITH mv AS (
+        SELECT ABS(pos.quantity * p.close) AS abs_mv
+        FROM positions pos
+        JOIN prices p ON p.ticker = pos.ticker AND p.date = pos.date
+        WHERE pos.date = DATE '2025-12-31'
+      ),
+      top5 AS (
+        SELECT abs_mv FROM mv ORDER BY abs_mv DESC LIMIT 5
+      )
+      SELECT ROUND((SELECT SUM(abs_mv) FROM top5) / (SELECT SUM(abs_mv) FROM mv) * 100, 2) AS top5_pct
+    float_tol: 0.01
