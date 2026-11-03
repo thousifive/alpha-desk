@@ -1,0 +1,26 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+backend/*.db
+backend/*.db-journal
+
+# Node
+node_modules/
+frontend/dist/
+frontend/public/duckdb/
+*.log
+coverage/
