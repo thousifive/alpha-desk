@@ -9,7 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import get_settings
 from app.content.loader import get_content, sync_content
 from app.db import dispose_engine, get_sessionmaker
-from app.routers import auth, branches, datasets, exercises, progress, quests
+from app.routers import auth, branches, datasets, exercises, offline, progress, quests
 
 
 # lifespan replaces the old @app.on_event("startup"/"shutdown") hooks: code before
@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
         exercises.router,
         datasets.router,
         quests.router,
+        offline.router,
     ):
         app.include_router(r)
 

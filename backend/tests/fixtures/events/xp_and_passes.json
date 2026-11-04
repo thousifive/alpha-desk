@@ -1,0 +1,37 @@
+{
+  "description": "Two devices, a retry, a duplicate XP key, and the same event imported twice",
+  "today": "2026-11-01",
+  "events": [
+    {"id": "00000000-0000-4000-8000-000000000001", "device_id": "phone", "type": "attempt",
+     "created_at": "2026-11-01T04:00:00Z", "local_date": "2026-11-01",
+     "payload": {"exercise_slug": "sql-first-look", "passed": false}},
+    {"id": "00000000-0000-4000-8000-000000000002", "device_id": "phone", "type": "attempt",
+     "created_at": "2026-11-01T04:05:00Z", "local_date": "2026-11-01",
+     "payload": {"exercise_slug": "sql-first-look", "passed": true}},
+    {"id": "00000000-0000-4000-8000-000000000003", "device_id": "phone", "type": "xp_awarded",
+     "created_at": "2026-11-01T04:05:00Z", "local_date": "2026-11-01",
+     "payload": {"ref_key": "attempt:sql-first-look", "source": "attempt", "amount": 20}},
+    {"id": "00000000-0000-4000-8000-000000000006", "device_id": "phone", "type": "xp_awarded",
+     "created_at": "2026-11-01T06:00:00Z", "local_date": "2026-11-01",
+     "payload": {"ref_key": "attempt:quiz-py-generics", "source": "attempt", "amount": 25}},
+    {"id": "00000000-0000-4000-8000-000000000004", "device_id": "ipad", "type": "attempt",
+     "created_at": "2026-11-01T05:00:00Z", "local_date": "2026-11-01",
+     "payload": {"exercise_slug": "quiz-py-generics", "passed": true}},
+    {"id": "00000000-0000-4000-8000-000000000005", "device_id": "ipad", "type": "xp_awarded",
+     "created_at": "2026-11-01T05:00:00Z", "local_date": "2026-11-01",
+     "payload": {"ref_key": "attempt:quiz-py-generics", "source": "attempt", "amount": 25}},
+    {"id": "00000000-0000-4000-8000-000000000002", "device_id": "phone", "type": "attempt",
+     "created_at": "2026-11-01T04:05:00Z", "local_date": "2026-11-01",
+     "payload": {"exercise_slug": "sql-first-look", "passed": true}}
+  ],
+  "expect": {
+    "facts": {
+      "xp_total": 45,
+      "passed": ["quiz-py-generics", "sql-first-look"],
+      "attempts": {"sql-first-look": [1, 2], "quiz-py-generics": [1, 1]},
+      "active_days": ["2026-11-01"],
+      "event_count": 6
+    },
+    "with_todos": {"level": "Intern"}
+  }
+}
