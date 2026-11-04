@@ -2,22 +2,22 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from app.auth import SESSION_KEY, AuthRequired, verify_password
+from app.auth import SESSION_KEY, AuthRequired, issue_token, verify_password
 from app.config import Settings, get_settings
 from app.deps import SessionDep
 from app.game.service import get_user, valid_timezone
-from app.schemas import LoginRequest, MeResponse, TimezoneIn
+from app.schemas import LoginRequest, MeResponse, TimezoneIn, TokenOut
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=MeResponse)
+@router.post("/login", response_model=TokenOut)
 async def login(
     body: LoginRequest,
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
     session: SessionDep,
-) -> MeResponse:
+) -> TokenOut:
     if not verify_password(body.password, settings.app_password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong password")
     # Clear before setting: a fresh session on login avoids session fixation.
@@ -25,7 +25,17 @@ async def login(
     request.session[SESSION_KEY] = True
     if body.timezone and valid_timezone(body.timezone):  # bad zone: ignore, don't block login
         await _set_timezone(session, body.timezone)
-    return MeResponse(authenticated=True)
+    token, expires_at = issue_token(settings)
+    return TokenOut(authenticated=True, token=token, expires_at=expires_at)
+
+
+@router.post("/refresh", response_model=TokenOut)
+async def refresh(
+    _: AuthRequired, settings: Annotated[Settings, Depends(get_settings)]
+) -> TokenOut:
+    """Swap a still-valid token for a fresh 30-day one (the app calls this while syncing)."""
+    token, expires_at = issue_token(settings)
+    return TokenOut(authenticated=True, token=token, expires_at=expires_at)
 
 
 async def _set_timezone(session: SessionDep, tz: str) -> None:

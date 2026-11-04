@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     app_password_hash: str = ""
     session_max_age_s: int = 60 * 60 * 24 * 30
     secure_cookies: bool = False  # set True behind HTTPS in prod
+    # Bearer token lifetime. Long on purpose: the PWA must keep working for weeks with the
+    # server off. Each sync while online swaps in a fresh token, so it's 30 days *idle*.
+    token_max_age_s: int = 60 * 60 * 24 * 30
+    # Comma-separated browser origins allowed to call the API cross-origin, e.g.
+    # "https://alpha-desk.netlify.app". Empty = same-origin only (the Vite dev proxy).
+    cors_origins: str = ""
 
     content_dir: Path = REPO_ROOT / "content"
     dataset_dir: Path = REPO_ROOT / "data" / "meridian"

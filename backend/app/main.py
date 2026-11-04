@@ -4,12 +4,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
 from app.content.loader import get_content, sync_content
 from app.db import dispose_engine, get_sessionmaker
-from app.routers import auth, branches, datasets, exercises, offline, progress, quests
+from app.routers import auth, branches, datasets, exercises, offline, progress, quests, sync
 
 
 # lifespan replaces the old @app.on_event("startup"/"shutdown") hooks: code before
@@ -35,6 +36,18 @@ def create_app() -> FastAPI:
         same_site="lax",  # sent on top-level navigations, not cross-site subrequests (CSRF guard)
         https_only=settings.secure_cookies,
     )
+    origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+    if origins:
+        # Added after SessionMiddleware, so it runs first (Starlette wraps in reverse): a CORS
+        # preflight is answered before anything else looks at the request. No credentials:
+        # the cross-origin client authenticates with a bearer header, not cookies.
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_methods=["GET", "POST", "PUT"],
+            allow_headers=["Authorization", "Content-Type"],
+            max_age=600,
+        )
     for r in (
         auth.router,
         progress.router,
@@ -43,6 +56,7 @@ def create_app() -> FastAPI:
         datasets.router,
         quests.router,
         offline.router,
+        sync.router,
     ):
         app.include_router(r)
 

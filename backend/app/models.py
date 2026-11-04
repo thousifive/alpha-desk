@@ -101,3 +101,34 @@ class QuestItem(SQLModel, table=True):
     exercise_slug: str = Field(foreign_key="exercise.slug")
     completed_at: datetime | None = None
     xp_awarded: int = 0
+
+
+class SyncEvent(SQLModel, table=True):
+    """The server's copy of every device's event log (see app.events.schema).
+
+    `seq` is the sync cursor: devices ask for "everything after seq N". It's the autoincrement
+    primary key, so it only grows. That's safe as a cursor here because SQLite has a single
+    writer: a row with a higher seq can't commit *before* a lower one and get skipped. (On
+    Postgres, concurrent transactions can commit out of seq order; you'd need a different
+    cursor there.)
+    """
+
+    seq: int | None = Field(default=None, primary_key=True)
+    # The device-generated uuid. Unique, so re-sending an event (retry after a dropped
+    # response) can't store it twice: that's what makes ingestion idempotent.
+    id: str = Field(unique=True, max_length=36)
+    device_id: str = Field(index=True, max_length=64)
+    type: str = Field(max_length=40)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime
+    local_date: date
+    v: int = 1
+    received_at: datetime = Field(default_factory=utcnow)
+
+
+class SyncState(SQLModel, table=True):
+    """Single row (id=1): how far the derived tables (Attempt, XpEvent, quests) have read
+    the event log. Like a consumer offset in Kafka: reprocessing restarts from here."""
+
+    id: int | None = Field(default=1, primary_key=True)
+    derived_seq: int = 0

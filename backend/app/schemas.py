@@ -1,7 +1,7 @@
 """Public API shapes (Pydantic v2). Kept apart from tables in models.py so hidden columns
 (Exercise.spec) can't leak by accident: a response model only serializes its own fields."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -23,6 +23,11 @@ class TimezoneIn(BaseModel):
 
 class MeResponse(BaseModel):
     authenticated: bool
+
+
+class TokenOut(MeResponse):
+    token: str
+    expires_at: datetime
 
 
 class LevelOut(BaseModel):

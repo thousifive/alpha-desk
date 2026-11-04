@@ -63,7 +63,9 @@ async def get_test_bundle(
     return HiddenTestsOut(hidden_tests=loc.exercise.hidden_tests)
 
 
-@router.post("/{slug}/attempts", response_model=AttemptOut)
+# Deprecated: the app grades on the device and syncs events (POST /api/sync/events). Kept
+# for now because its tests exercise the TODO(me) XP rules end to end on the server.
+@router.post("/{slug}/attempts", response_model=AttemptOut, deprecated=True)
 async def submit_attempt(
     slug: str,
     body: AttemptIn,
