@@ -1,16 +1,11 @@
 import * as duckdb from '@duckdb/duckdb-wasm'
-// Vite `?url` imports copy these into the build and give us their hashed URLs:
-// self-hosted, so no CDN dependency at runtime.
-import ehWorker from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url'
-import mvpWorker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url'
-import ehWasm from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url'
-import mvpWasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
 
 import { API_BASE } from '../../api/client'
 import type { ResultSet } from '../../api/types'
 import { getToken } from '../auth/token'
 import type { Bundle } from '../local/engine'
 import { getCache } from '../local/store'
+import { crossOriginWorker, DUCKDB_BUNDLES } from './cdn'
 import { normalizeTable } from './normalize'
 
 /** Must match backend/app/grading/dataset.py. */
@@ -44,11 +39,9 @@ export function getDuckDB(onProgress?: (p: LoadProgress) => void): Promise<duckd
 }
 
 async function init(onProgress?: (p: LoadProgress) => void): Promise<duckdb.AsyncDuckDB> {
-  const bundle = await duckdb.selectBundle({
-    mvp: { mainModule: mvpWasm, mainWorker: mvpWorker },
-    eh: { mainModule: ehWasm, mainWorker: ehWorker },
-  })
-  const worker = new Worker(bundle.mainWorker!)
+  // Picks eh (wasm exceptions) where supported, else mvp. Both pinned on the CDN (cdn.ts).
+  const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES)
+  const worker = await crossOriginWorker(bundle.mainWorker!)
   const db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker)
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker)
   // Cast flags make BIGINT/HUGEINT/DECIMAL arrive as JS numbers instead of BigInt/Uint32Array,

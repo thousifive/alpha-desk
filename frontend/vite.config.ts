@@ -4,6 +4,14 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, searchForWorkspaceRoot } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// A Netlify build without the API origin would deploy an app that can never reach the server
+// (and still spend the deploy's credits). Fail the build instead.
+if (process.env.NETLIFY === 'true' && !process.env.VITE_API_URL) {
+  throw new Error(
+    'VITE_API_URL is not set: add it in Netlify → Site configuration → Environment variables',
+  )
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -30,9 +38,6 @@ export default defineConfig({
       workbox: {
         // App shell: every JS/CSS chunk (Monaco included, so exercises open offline) + HTML.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        // DuckDB ships two builds (eh/mvp: a 36-41 MB .wasm + a ~0.8 MB worker each) and a device
-        // uses one: runtime-cache the one actually fetched instead of precaching both.
-        globIgnores: ['**/duckdb-*'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
@@ -51,13 +56,27 @@ export default defineConfig({
             },
           },
           {
-            // Hashed filenames, so a new DuckDB version is a new URL.
-            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.includes('/duckdb-'),
+            // DuckDB-WASM at an exact npm version on jsDelivr (src/lib/duckdb/cdn.ts): the
+            // path never changes content, so cache forever. Only the build a device uses
+            // (eh or mvp, ~36-41 MB) is ever fetched.
+            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@duckdb\/duckdb-wasm@[^/]+\//,
             handler: 'CacheFirst',
             options: {
               cacheName: 'duckdb',
               cacheableResponse: { statuses: [200] },
               expiration: { maxEntries: 6 },
+            },
+          },
+          {
+            // DuckDB autoloads its parquet extension from here on first read_parquet(). The
+            // path carries the DuckDB version, so entries never change. Without this rule
+            // offline SQL only worked while the HTTP cache happened to still hold the file.
+            urlPattern: /^https:\/\/extensions\.duckdb\.org\/v[\d.]+\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'duckdb-extensions',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 10 },
             },
           },
           {
