@@ -7,6 +7,7 @@ import { useQuests } from '../../api/hooks'
 import type { QuestBoard as Board, QuestItem } from '../../api/types'
 import { Locked } from '../../components/Locked'
 import { Bar, Panel } from '../../components/ui'
+import { NoQuestPlanError } from '../../lib/local/hooks'
 import { PERSONAS } from '../../lib/personas'
 import { TODOS, todoFromMessage } from '../../lib/todos'
 
@@ -32,7 +33,11 @@ export function QuestBoard({ fallback }: { fallback: ReactNode }) {
             <Locked task={locked} />
           </div>
         ) : (
-          <p className="mb-3 text-xs text-muted">Couldn't load today's quests.</p>
+          <p className="mb-3 text-xs text-muted">
+            {q.error instanceof NoQuestPlanError
+              ? q.error.message
+              : "Couldn't load today's quests."}
+          </p>
         )}
         {fallback}
       </Panel>

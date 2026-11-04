@@ -1,11 +1,13 @@
 """`uv run alpha-desk <command>`: admin CLI."""
 
 import asyncio
+import json
 
 import typer
 
 from app.auth import hash_password
 from app.config import get_settings
+from app.content.bundle import build_bundle
 from app.content.loader import load_content, sync_content
 from app.dataset.generate import generate
 from app.db import dispose_engine, get_sessionmaker
@@ -19,6 +21,15 @@ def hash_password_cmd() -> None:
     pw = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
     # Single quotes: argon2 hashes contain `$`, which dotenv would otherwise try to expand.
     typer.echo(f"APP_PASSWORD_HASH='{hash_password(pw)}'")
+
+
+@app.command("export-bundle")
+def export_bundle() -> None:
+    """Print the offline content bundle as JSON (used by the frontend's kernel e2e test)."""
+    settings = get_settings()
+    typer.echo(
+        json.dumps(build_bundle(load_content(settings.content_dir), settings.current_milestone))
+    )
 
 
 @app.command("seed-dataset")

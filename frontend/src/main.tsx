@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 
 import { ApiError } from './api/client'
 import App from './App'
+import { primeSnapshot, wireLocalInvalidation } from './lib/local/hooks'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -15,6 +16,11 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+wireLocalInvalidation(queryClient)
+// Best effort: paint the cached dashboard on the first frame. Rendering doesn't wait on it
+// for long, since IndexedDB reads take milliseconds.
+await primeSnapshot(queryClient)
 
 const root = document.getElementById('root')
 if (!root) throw new Error('#root missing from index.html')

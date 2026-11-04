@@ -1,9 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 
-import { ApiError } from '../../api/client'
 import { useExercise } from '../../api/hooks'
 import type { Exercise } from '../../api/types'
+import { LoadError } from '../../components/LoadError'
 import { Locked } from '../../components/Locked'
 import { loadDraft, saveDraft } from '../../lib/drafts'
 import { runQuery, type QueryResult } from '../../lib/duckdb/db'
@@ -26,15 +26,7 @@ export default function ExercisePage() {
   const ex = useExercise(slug)
 
   if (ex.isPending) return <p className="p-6 font-mono text-sm text-muted">Loading ticket…</p>
-  if (ex.isError) {
-    return (
-      <p className="p-6 font-mono text-sm text-down">
-        {ex.error instanceof ApiError && ex.error.status === 404
-          ? 'No such ticket.'
-          : 'Failed to load ticket.'}
-      </p>
-    )
-  }
+  if (ex.isError) return <LoadError error={ex.error} notFound="No such ticket." />
   // Keyed by slug: moving to the next ticket remounts with fresh editor/result/feedback state.
   return <Desk key={ex.data.slug} ex={ex.data} />
 }

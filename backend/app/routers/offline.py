@@ -1,7 +1,5 @@
 """What a device downloads to work with the server off."""
 
-import hashlib
-import json
 from typing import Any
 
 from fastapi import APIRouter
@@ -9,6 +7,7 @@ from fastapi.responses import Response
 from sqlmodel import col, select
 
 from app.auth import AuthRequired
+from app.content.bundle import build_bundle
 from app.deps import ContentDep, SessionDep, SettingsDep
 from app.events.legacy import legacy_events
 from app.events.schema import EVENT_LIST
@@ -19,14 +18,8 @@ router = APIRouter(prefix="/api/offline", tags=["offline"])
 
 @router.get("/bundle")
 async def bundle(_: AuthRequired, content: ContentDep, settings: SettingsDep) -> dict[str, Any]:
-    """All content, *including* grading data (solutions, quiz answers, hidden tests), so the
-    device can grade offline. Acceptable for a single-player app: see docs/SPEC.md. Behind
-    auth, so it isn't public on the internet."""
-    body = content.model_dump(mode="json")
-    # sort_keys makes the hash stable across runs (dict order alone isn't a content change).
-    raw = json.dumps({"c": body, "m": settings.current_milestone}, sort_keys=True)
-    version = hashlib.sha256(raw.encode()).hexdigest()[:16]
-    return {"version": version, "milestone": settings.current_milestone, "content": body}
+    # Behind auth, so the grading data in it isn't public on the internet.
+    return build_bundle(content, settings.current_milestone)
 
 
 @router.get("/legacy-events")

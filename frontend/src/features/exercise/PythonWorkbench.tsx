@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { fetchHiddenTests } from '../../api/hooks'
+import { getHiddenTests } from '../../api/hooks'
 import type { Exercise } from '../../api/types'
 import { Locked } from '../../components/Locked'
 import { loadDraft, saveDraft } from '../../lib/drafts'
@@ -71,7 +71,7 @@ export default function PythonWorkbench({ ex }: { ex: Exercise }) {
     if (busy || pending) return
     setBusy({ what: 'submit', phase: 'fetching' })
     try {
-      hidden.current ??= (await fetchHiddenTests(ex.slug)).hidden_tests
+      hidden.current ??= await getHiddenTests(ex.slug)
     } catch (e) {
       setBusy(null)
       setRunError(e instanceof Error ? e.message : String(e))

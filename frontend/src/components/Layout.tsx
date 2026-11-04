@@ -2,11 +2,13 @@ import { useEffect } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
 
 import { browserTimezone, useLogout, useProgress, useSyncTimezone } from '../api/hooks'
+import { useOfflineBootstrap } from '../lib/local/hooks'
 
 export function Layout() {
   const progress = useProgress()
   const logout = useLogout()
   const syncTz = useSyncTimezone()
+  useOfflineBootstrap()
   const p = progress.data
 
   // Once per app load: keeps "today" right if the player travels after logging in.
@@ -44,6 +46,9 @@ export function Layout() {
               <span className="text-amber">{p.xp_total.toLocaleString()}</span> XP
             </span>
           )}
+          <NavLink to="/settings" className={navCls}>
+            SETTINGS
+          </NavLink>
           <button onClick={() => logout.mutate()} className="text-muted hover:text-ink">
             LOG OUT
           </button>

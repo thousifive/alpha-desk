@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 
 import { useBranch, useBranches, useProgress } from '../../api/hooks'
 import type { BranchDetail, Progress } from '../../api/types'
+import { LoadError } from '../../components/LoadError'
 import { Locked } from '../../components/Locked'
 import { Bar, Panel } from '../../components/ui'
 import { exercisesLabel, nodesLabel, ratio } from '../../lib/counts'
@@ -19,7 +20,7 @@ export function DashboardPage() {
     return <p className="p-6 font-mono text-sm text-muted">Loading desk…</p>
   }
   if (progress.isError || branches.isError) {
-    return <p className="p-6 font-mono text-sm text-down">Couldn't reach the backend.</p>
+    return <LoadError error={progress.error ?? branches.error} notFound="Nothing here." />
   }
 
   return (

@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router'
 
 import { useBranch } from '../../api/hooks'
 import type { SkillNode } from '../../api/types'
+import { LoadError } from '../../components/LoadError'
 import { Bar, StateBadge } from '../../components/ui'
 import { exercisesLabel, nodesLabel, ratio } from '../../lib/counts'
 import { PERSONAS } from '../../lib/personas'
@@ -12,7 +13,7 @@ export function BranchPage() {
   const branch = useBranch(branchId)
 
   if (branch.isPending) return <p className="p-6 font-mono text-sm text-muted">Loading branch…</p>
-  if (branch.isError) return <p className="p-6 font-mono text-sm text-down">Unknown branch.</p>
+  if (branch.isError) return <LoadError error={branch.error} notFound="Unknown branch." />
   const b = branch.data
   const titles = Object.fromEntries(b.nodes.map((n) => [n.slug, n.title]))
 

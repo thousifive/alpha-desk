@@ -6,6 +6,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { BranchPage } from './features/branch/BranchPage'
 import { DashboardPage } from './features/dashboard/DashboardPage'
+import { SettingsPage } from './features/settings/SettingsPage'
 
 // Exercise route pulls in DuckDB-WASM + Monaco (multi-MB); split it out of the main bundle.
 const ExercisePage = lazy(() => import('./features/exercise/ExercisePage'))
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardPage /> },
           { path: 'branches/:branchId', element: <BranchPage /> },
+          { path: 'settings', element: <SettingsPage /> },
           {
             path: 'exercises/:slug',
             element: (
