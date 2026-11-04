@@ -1,0 +1,59 @@
+# Netlify (free plan): 300 credits/month, ~15 per production deploy, ~20 per GB served.
+# Rules here keep both low: build only `main`, skip builds that don't touch the app, and let
+# browsers (plus the service worker) cache everything that has a hash in its name.
+# UI settings that can't live in this file: see docs/DEPLOY.md.
+
+[build]
+  base = "frontend"
+  publish = "dist"
+  command = "pnpm build"
+  # Exit 0 = skip this build. Cancels deploy previews, branch deploys, and commits that
+  # only touch docs/content/backend server code. See scripts/netlify-ignore.sh.
+  ignore = "sh scripts/netlify-ignore.sh"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # VITE_API_URL is set in the Netlify UI (Site configuration → Environment variables):
+  # it's the tunnel URL, e.g. https://api.example.com. The build fails without it.
+
+# SPA: every unknown path serves the app; React Router takes it from there.
+# (Static files and /assets win because redirects without force=true don't shadow them.)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Hashed build output: safe to cache for a year, never revalidated.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/workbox-*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Unhashed entry points must revalidate, or devices never see a new deploy.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+    Content-Type = "application/manifest+json"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
