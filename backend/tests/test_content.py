@@ -19,6 +19,20 @@ def test_real_content_loads() -> None:
     assert set(bundle.nodes) == {b.id for b in bundle.branches}
 
 
+def test_boss_per_branch() -> None:
+    """Boss-to-branch mapping (docs/SPEC.md §3.5). Every branch ends in at least one boss."""
+    bundle = load_content(CONTENT)
+    bosses = {b.id: [boss.title for boss in b.bosses] for b in bundle.branches}
+    assert bosses == {
+        "sql-olap": ["The Analytics Desk"],
+        "python-fastapi": ["The API Gateway"],
+        "data-pipelines": ["The Data Feed"],
+        "agents-llms": ["The Oracle", "The Copilot"],
+        "cloud-devops": ["Go Live"],
+        "buy-side-finance": ["The PM Review"],
+    }
+
+
 @pytest.fixture
 def content_copy(tmp_path: Path) -> Path:
     dst = tmp_path / "content"

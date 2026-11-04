@@ -32,5 +32,5 @@ async def get_progress(
         passed_exercises=len(passed & playable),
         playable_exercises=len(playable),
         mastered_nodes=sum(st.state == "mastered" for st in states.values()),
-        next_boss=next_boss(content, states, settings.current_milestone),
+        next_boss=next_boss(content, states, passed, settings.current_milestone),
     )

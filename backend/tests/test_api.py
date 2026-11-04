@@ -54,7 +54,25 @@ async def test_branches_list(authed_client: AsyncClient) -> None:
     assert sql["playable"] is True
     assert sql["n_exercises"] >= 15
     assert sql["n_passed"] == 0
-    assert sql["boss"]["title"]
+    assert [b["title"] for b in sql["bosses"]] == ["The Analytics Desk"]
+
+
+async def test_counts_agree_across_screens(authed_client: AsyncClient) -> None:
+    """Boss card, skill tree, and node grid must show the same exercise/node numbers."""
+    summary = next(
+        b for b in (await authed_client.get("/api/branches")).json() if b["id"] == "sql-olap"
+    )
+    detail = (await authed_client.get("/api/branches/sql-olap")).json()
+    boss = (await authed_client.get("/api/progress")).json()["next_boss"]
+    keys = ("n_nodes", "n_mastered", "n_exercises", "n_passed")
+    assert (
+        {k: summary[k] for k in keys} == {k: detail[k] for k in keys} == {k: boss[k] for k in keys}
+    )
+    # The node grid sums to the branch total, counting playable exercises only.
+    assert sum(n["n_exercises"] for n in detail["nodes"]) == detail["n_exercises"]
+    for n in detail["nodes"]:
+        assert n["n_exercises"] == sum(e["playable"] for e in n["exercises"])
+    assert len(detail["nodes"]) == detail["n_nodes"]
 
 
 async def test_branch_detail_states(authed_client: AsyncClient) -> None:
@@ -108,6 +126,8 @@ async def test_progress_shape(authed_client: AsyncClient) -> None:
     assert body["passed_exercises"] == 0
     assert body["playable_exercises"] >= 15
     assert body["next_boss"]["branch_id"] == "sql-olap"
+    assert body["next_boss"]["title"] == "The Analytics Desk"
+    assert (body["next_boss"]["stage"], body["next_boss"]["stages"]) == (1, 1)
     # level is null until TODO(me) #1 is done, then {"title": "Intern", ...}
     assert body["level"] is None or body["level"]["title"] == "Intern"
 

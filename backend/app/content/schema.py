@@ -134,7 +134,9 @@ class BranchDef(_Strict):
     description: str
     order: int
     playable_from: str  # milestone label, e.g. "M1"
-    boss: BossDef | None = None
+    # Fought in list order once the branch is mastered. A list (not one boss) because
+    # Agents & LLMs ends in two: the MCP server, then the LangGraph agent built on it.
+    bosses: list[BossDef] = []
 
 
 class LevelDef(_Strict):

@@ -3,8 +3,14 @@ from fastapi import APIRouter, HTTPException, status
 from app.auth import AuthRequired
 from app.content.schema import BranchDef, ContentBundle
 from app.deps import ContentDep, SessionDep, SettingsDep
-from app.game.service import boss_out, passed_slugs
-from app.game.unlocks import NodeStatus, branch_playable, node_states, playable_exercise_slugs
+from app.game.service import bosses_out, branch_counts, passed_slugs
+from app.game.unlocks import (
+    PLAYABLE_TYPES,
+    NodeStatus,
+    branch_playable,
+    node_states,
+    playable_exercise_slugs,
+)
 from app.schemas import BranchDetail, BranchSummary, ExerciseSummary, NodeOut
 
 router = APIRouter(prefix="/api/branches", tags=["branches"])
@@ -17,8 +23,6 @@ def _summary(
     passed: set[str],
     milestone: str,
 ) -> BranchSummary:
-    nodes = content.nodes[branch.id]
-    ex_slugs = [s for n in nodes for s in playable_exercise_slugs(n)]
     return BranchSummary(
         id=branch.id,
         title=branch.title,
@@ -26,11 +30,8 @@ def _summary(
         order=branch.order,
         playable=branch_playable(branch, milestone),
         playable_from=branch.playable_from,
-        boss=boss_out(content, branch.id),
-        n_nodes=len(nodes),
-        n_mastered=sum(states[n.slug].state == "mastered" for n in nodes),
-        n_exercises=len(ex_slugs),
-        n_passed=sum(s in passed for s in ex_slugs),
+        bosses=bosses_out(content, branch.id),
+        **branch_counts(content, branch.id, states, passed).model_dump(),
     )
 
 
@@ -68,6 +69,8 @@ async def get_branch(
             prerequisites=list(n.prerequisites),
             xp_reward=n.xp_reward,
             state=states[n.slug].state,
+            n_exercises=len(playable_exercise_slugs(n)),
+            n_passed=sum(s in passed for s in playable_exercise_slugs(n)),
             exercises=[
                 ExerciseSummary(
                     slug=ex.slug,
@@ -76,6 +79,7 @@ async def get_branch(
                     persona=ex.persona,
                     difficulty=ex.difficulty,
                     passed=ex.slug in passed,
+                    playable=ex.type in PLAYABLE_TYPES,
                 )
                 for ex in n.exercises
             ],

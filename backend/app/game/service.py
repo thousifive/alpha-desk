@@ -9,9 +9,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.content.schema import ContentBundle
 from app.game.levels import level_info
-from app.game.unlocks import NodeStatus, branch_playable
+from app.game.unlocks import NodeStatus, branch_playable, playable_exercise_slugs
 from app.models import Attempt, User, XpEvent
-from app.schemas import BossOut, LevelOut
+from app.schemas import BossOut, BranchCounts, LevelOut, NextBossOut
 
 
 def valid_timezone(name: str) -> bool:
@@ -82,26 +82,46 @@ def level_out(xp: int, bundle: ContentBundle) -> LevelOut | None:
     )
 
 
-def boss_out(bundle: ContentBundle, branch_id: str) -> BossOut | None:
+def bosses_out(bundle: ContentBundle, branch_id: str) -> list[BossOut]:
     branch = next(b for b in bundle.branches if b.id == branch_id)
-    if branch.boss is None:
-        return None
-    return BossOut(
-        branch_id=branch.id,
-        branch_title=branch.title,
-        title=branch.boss.title,
-        description=branch.boss.description,
+    # enumerate(xs, start=1) yields (1, x0), (2, x1), …: 1-based stage numbers for the UI.
+    return [
+        BossOut(
+            branch_id=branch.id,
+            branch_title=branch.title,
+            title=boss.title,
+            description=boss.description,
+            stage=i,
+            stages=len(branch.bosses),
+        )
+        for i, boss in enumerate(branch.bosses, start=1)
+    ]
+
+
+def branch_counts(
+    bundle: ContentBundle, branch_id: str, states: dict[str, NodeStatus], passed: set[str]
+) -> BranchCounts:
+    nodes = bundle.nodes[branch_id]
+    ex_slugs = [s for n in nodes for s in playable_exercise_slugs(n)]
+    return BranchCounts(
+        n_nodes=len(nodes),
+        n_mastered=sum(states[n.slug].state == "mastered" for n in nodes),
+        n_exercises=len(ex_slugs),
+        n_passed=sum(s in passed for s in ex_slugs),
     )
 
 
 def next_boss(
-    bundle: ContentBundle, states: dict[str, NodeStatus], milestone: str
-) -> BossOut | None:
-    """The boss at the end of the first playable branch that isn't fully mastered yet."""
+    bundle: ContentBundle, states: dict[str, NodeStatus], passed: set[str], milestone: str
+) -> NextBossOut | None:
+    """The first boss of the first playable branch that isn't fully mastered yet, with that
+    branch's own counts (not totals across branches). Boss fights land in M5, so until then
+    "next" is always a branch's first boss."""
     for branch in sorted(bundle.branches, key=lambda b: b.order):
-        if not branch_playable(branch, milestone) or branch.boss is None:
+        if not branch_playable(branch, milestone) or not branch.bosses:
             continue
-        nodes = bundle.nodes[branch.id]
-        if any(states[n.slug].state != "mastered" for n in nodes):
-            return boss_out(bundle, branch.id)
+        if any(states[n.slug].state != "mastered" for n in bundle.nodes[branch.id]):
+            first = bosses_out(bundle, branch.id)[0]
+            counts = branch_counts(bundle, branch.id, states, passed)
+            return NextBossOut(**first.model_dump(), **counts.model_dump())
     return None

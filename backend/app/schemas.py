@@ -38,6 +38,23 @@ class BossOut(BaseModel):
     branch_title: str
     title: str
     description: str
+    stage: int  # 1-based position among the branch's bosses
+    stages: int  # how many bosses the branch has
+
+
+class BranchCounts(BaseModel):
+    """One definition of "how far along is this branch", shared by every screen.
+    Exercises = playable exercises only; nodes = every node in the branch."""
+
+    n_nodes: int
+    n_mastered: int
+    n_exercises: int
+    n_passed: int
+
+
+# Multiple inheritance merges the fields of both models, like a TS intersection `A & B`.
+class NextBossOut(BossOut, BranchCounts):
+    pass
 
 
 class StreakOut(BaseModel):
@@ -81,21 +98,17 @@ class ProgressOut(BaseModel):
     passed_exercises: int
     playable_exercises: int
     mastered_nodes: int
-    next_boss: BossOut | None
+    next_boss: NextBossOut | None
 
 
-class BranchSummary(BaseModel):
+class BranchSummary(BranchCounts):
     id: str
     title: str
     description: str
     order: int
     playable: bool
     playable_from: str
-    boss: BossOut | None
-    n_nodes: int
-    n_mastered: int
-    n_exercises: int
-    n_passed: int
+    bosses: list[BossOut]
 
 
 class ExerciseSummary(BaseModel):
@@ -105,6 +118,8 @@ class ExerciseSummary(BaseModel):
     persona: str
     difficulty: int
     passed: bool
+    # False for placeholder types (e.g. "review") that don't count toward progress yet.
+    playable: bool
 
 
 class NodeOut(BaseModel):
@@ -115,6 +130,9 @@ class NodeOut(BaseModel):
     prerequisites: list[str]
     xp_reward: int
     state: NodeStateT
+    # Same rule as BranchCounts: playable exercises only.
+    n_exercises: int
+    n_passed: int
     exercises: list[ExerciseSummary]
 
 
