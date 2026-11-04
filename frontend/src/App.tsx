@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router'
 
 import { Layout } from './components/Layout'
+import { UpdateToast } from './components/UpdateToast'
 import { LoginPage } from './features/auth/LoginPage'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { BranchPage } from './features/branch/BranchPage'
@@ -39,5 +40,10 @@ const router = createBrowserRouter([
 ])
 
 export default function App() {
-  return <RouterProvider router={router} />
+  return (
+    <>
+      <RouterProvider router={router} />
+      <UpdateToast />
+    </>
+  )
 }
