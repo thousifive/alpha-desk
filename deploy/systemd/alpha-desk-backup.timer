@@ -1,0 +1,12 @@
+# An always-on server never hits "stop", so back up daily too. Persistent=true runs a missed
+# backup at boot if the laptop was off at 03:30.
+[Unit]
+Description=Daily Alpha Desk backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

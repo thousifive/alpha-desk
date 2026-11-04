@@ -1,0 +1,25 @@
+# Phase 2 (Linux laptop): keep the backend up across reboots. Installed by
+# scripts/install-systemd.sh, which fills in @REPO@, @USER@, @UID@ and @GID@.
+[Unit]
+Description=Alpha Desk API (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=@USER@
+WorkingDirectory=@REPO@
+Environment=ALPHA_HOST=%H
+Environment=ALPHA_UID=@UID@
+Environment=ALPHA_GID=@GID@
+ExecStart=/usr/bin/docker compose up -d --build --wait
+ExecStop=/usr/bin/docker compose stop
+# Same as `make serve` on the Mac: every stop leaves a fresh backup.
+ExecStopPost=@REPO@/scripts/backup.sh
+TimeoutStartSec=600
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target
