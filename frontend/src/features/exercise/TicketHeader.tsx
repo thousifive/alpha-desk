@@ -8,7 +8,10 @@ export function TicketHeader({ ex }: { ex: Exercise }) {
   return (
     <header>
       <p className="font-mono text-[11px] text-muted">
-        <Link to={`/branches/${ex.branch_id}`} className="hover:text-ink">
+        <Link
+          to={`/branches/${ex.branch_id}`}
+          className="hover:text-ink pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+        >
           {ex.branch_id.toUpperCase()}
         </Link>
         <span className="mx-1.5">/</span>

@@ -15,16 +15,21 @@ const plural = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 
 
 export interface PillView {
   text: string
+  /** Phone header: the same state in a few characters. */
+  short: string
   tone: 'calm' | 'amber'
   title: string
 }
 
 export function pillView(s: SyncStatus, queued: number, now = Date.now()): PillView {
   const syncLock = s.locked.find((m) => m.startsWith('Sync offline'))
-  if (s.syncing) return { text: 'Syncing…', tone: 'calm', title: 'Talking to the server' }
+  if (s.syncing) {
+    return { text: 'Syncing…', short: 'Syncing…', tone: 'calm', title: 'Talking to the server' }
+  }
   if (s.reachability !== 'up') {
     return {
       text: queued ? `Offline · ${plural(queued, 'change')} queued` : 'Offline',
+      short: queued ? `Offline · ${queued.toLocaleString()}` : 'Offline',
       tone: queued ? 'amber' : 'calm',
       title: 'Progress is saved on this device and syncs when the server is on.',
     }
@@ -33,13 +38,18 @@ export function pillView(s: SyncStatus, queued: number, now = Date.now()): PillV
     const t = todoFromMessage(syncLock)
     return {
       text: `Sync locked · TODO(me) ${t?.id ?? ''}`.trim(),
+      short: 'Sync locked',
       tone: 'amber',
       title: t ? `${t.fn}() in ${t.file}. ${t.story}` : syncLock,
     }
   }
-  if (queued) return { text: `${plural(queued, 'change')} to sync`, tone: 'amber', title: '' }
+  if (queued) {
+    const text = `${plural(queued, 'change')} to sync`
+    return { text, short: `${queued.toLocaleString()} to sync`, tone: 'amber', title: '' }
+  }
   return {
     text: s.lastSyncAt ? `Synced · ${relativeTime(s.lastSyncAt, now)}` : 'Online',
+    short: s.lastSyncAt ? `Synced ${relativeTime(s.lastSyncAt, now)}` : 'Online',
     tone: 'calm',
     title: s.lastSyncAt ? `Last sync ${new Date(s.lastSyncAt).toLocaleString()}` : '',
   }

@@ -104,7 +104,7 @@ function NodeCard({ node, titles }: { node: SkillNode; titles: Record<string, st
                 <li key={e.slug}>
                   <Link
                     to={`/exercises/${e.slug}`}
-                    className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-panel-2"
+                    className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-panel-2 pointer-coarse:min-h-11"
                   >
                     <span className={`font-mono text-xs ${e.passed ? 'text-up' : 'text-muted'}`}>
                       {e.passed ? '✓' : '○'}

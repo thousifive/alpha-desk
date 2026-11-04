@@ -41,7 +41,10 @@ export function DashboardPage() {
             <li key={b.id}>
               <div className="flex items-baseline justify-between gap-2 text-sm">
                 {b.playable ? (
-                  <Link to={`/branches/${b.id}`} className="hover:text-amber">
+                  <Link
+                    to={`/branches/${b.id}`}
+                    className="hover:text-amber pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+                  >
                     {b.title}
                   </Link>
                 ) : (
@@ -181,7 +184,7 @@ function MiniMap({ branch }: { branch: BranchDetail }) {
       <p className="font-mono text-[10px] tracking-wider text-muted">
         {branch.title.toUpperCase()} NODES
       </p>
-      <div className="mt-2 grid grid-cols-6 gap-1.5">
+      <div className="mt-2 grid grid-cols-6 gap-1.5 pointer-coarse:grid-cols-[repeat(auto-fill,44px)]">
         {branch.nodes.map((n) => (
           <Link
             key={n.slug}

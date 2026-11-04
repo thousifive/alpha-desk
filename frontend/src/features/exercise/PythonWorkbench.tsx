@@ -98,7 +98,7 @@ export default function PythonWorkbench({ ex }: { ex: Exercise }) {
         : null
 
   return (
-    <section className="grid min-h-[70dvh] grid-rows-[minmax(220px,1fr)_auto_minmax(180px,1fr)] lg:min-h-0">
+    <section className="grid min-h-[70dvh] grid-cols-[minmax(0,1fr)] grid-rows-[minmax(220px,1fr)_auto_minmax(180px,1fr)] lg:min-h-0">
       <div className="min-h-0 border-b border-line">
         <CodeEditor
           language="python"
@@ -112,19 +112,19 @@ export default function PythonWorkbench({ ex }: { ex: Exercise }) {
         <button
           onClick={() => void run()}
           disabled={!!busy}
-          className="rounded border border-line px-3 py-1 font-mono text-xs hover:border-muted disabled:opacity-40"
+          className="min-h-11 rounded border border-line px-4 font-mono text-xs hover:border-muted disabled:opacity-40 pointer-fine:min-h-0 pointer-fine:px-3 pointer-fine:py-1"
         >
           {busy?.what === 'run' ? 'RUNNING…' : 'RUN TESTS'}{' '}
-          <kbd className="ml-1 text-muted">⌘↵</kbd>
+          <kbd className="ml-1 text-muted max-sm:hidden">⌘↵</kbd>
         </button>
         <div className="relative">
           <button
             onClick={() => void submitNow()}
             disabled={!!busy || pending}
-            className="rounded bg-amber px-3 py-1 font-mono text-xs font-semibold text-bg disabled:opacity-40"
+            className="min-h-11 rounded bg-amber px-4 font-mono text-xs font-semibold text-bg disabled:opacity-40 pointer-fine:min-h-0 pointer-fine:px-3 pointer-fine:py-1"
           >
             {pending || busy?.what === 'submit' ? 'GRADING…' : 'SUBMIT'}{' '}
-            <kbd className="ml-1 opacity-60">⌘⇧↵</kbd>
+            <kbd className="ml-1 opacity-60 max-sm:hidden">⌘⇧↵</kbd>
           </button>
           {overlay}
         </div>
@@ -132,7 +132,7 @@ export default function PythonWorkbench({ ex }: { ex: Exercise }) {
           onClick={() => {
             if (window.confirm('Reset the editor to the starter code?')) setCode(ex.starter_code)
           }}
-          className="font-mono text-[11px] text-muted hover:text-ink"
+          className="min-h-11 px-2 font-mono text-[11px] text-muted hover:text-ink pointer-fine:min-h-0"
         >
           RESET
         </button>
@@ -160,7 +160,7 @@ export default function PythonWorkbench({ ex }: { ex: Exercise }) {
               role="tab"
               aria-selected={tab === t}
               onClick={() => setTab(t)}
-              className={`px-2 py-1.5 ${tab === t ? 'border-b border-amber text-amber' : 'text-muted hover:text-ink'}`}
+              className={`min-h-11 px-3 pointer-fine:min-h-0 pointer-fine:px-2 pointer-fine:py-1.5 ${tab === t ? 'border-b border-amber text-amber' : 'text-muted hover:text-ink'}`}
             >
               {t === 'results' ? 'RESULTS' : 'VISIBLE TESTS'}
             </button>

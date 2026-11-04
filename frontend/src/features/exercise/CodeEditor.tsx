@@ -11,6 +11,10 @@ interface Props {
   onSubmit: () => void
 }
 
+// Read once per mount: these pick an editing profile, they don't need to track resizes.
+const isPhone = () => window.matchMedia('(max-width: 639px)').matches
+const isTouch = () => window.matchMedia('(pointer: coarse)').matches
+
 export function CodeEditor({ language, value, onChange, onRun, onSubmit }: Props) {
   // Monaco commands are registered once on mount; refs keep them pointing at the latest
   // callbacks without re-registering (which would stack duplicate bindings).
@@ -25,8 +29,10 @@ export function CodeEditor({ language, value, onChange, onRun, onSubmit }: Props
     const { KeyMod, KeyCode } = monaco
     editor.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, () => runRef.current())
     editor.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter, () => submitRef.current())
-    editor.focus()
+    // On touch, focusing opens the on-screen keyboard over the prompt: let the player tap in.
+    if (!isTouch()) editor.focus()
   }
+  const phone = isPhone()
 
   return (
     <Editor
@@ -37,7 +43,11 @@ export function CodeEditor({ language, value, onChange, onRun, onSubmit }: Props
       onMount={onMount}
       options={{
         fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
-        fontSize: 13,
+        // iOS zooms the page into any input under 16px; on phones that's the editor itself.
+        fontSize: phone ? 16 : isTouch() ? 15 : 13,
+        wordWrap: phone ? 'on' : 'off',
+        lineNumbersMinChars: phone ? 2 : 4,
+        folding: !phone,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         renderLineHighlight: 'line',

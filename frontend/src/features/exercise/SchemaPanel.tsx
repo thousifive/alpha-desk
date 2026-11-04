@@ -4,15 +4,26 @@ import type { Schema } from '../../lib/duckdb/useDuckDB'
 
 export function SchemaPanel({ schema }: { schema: Schema }) {
   const [open, setOpen] = useState<string | null>(null)
+  // On a phone the list sits between the prompt and the editor: start collapsed so the editor
+  // is one short scroll away. Decided once at mount.
+  const [shown, setShown] = useState(() => !window.matchMedia('(max-width: 639px)').matches)
+  const count = Object.keys(schema).length
   return (
     <section className="mt-6">
-      <h2 className="font-mono text-[11px] tracking-wider text-muted">TABLES</h2>
-      <ul className="mt-2 space-y-0.5 font-mono text-xs">
+      <button
+        onClick={() => setShown(!shown)}
+        aria-expanded={shown}
+        className="flex items-center gap-2 font-mono text-[11px] tracking-wider text-muted hover:text-ink pointer-coarse:min-h-11"
+      >
+        <span>{shown ? '▾' : '▸'}</span>
+        TABLES ({count})
+      </button>
+      <ul hidden={!shown} className="mt-2 space-y-0.5 font-mono text-xs">
         {Object.entries(schema).map(([table, cols]) => (
           <li key={table}>
             <button
               onClick={() => setOpen(open === table ? null : table)}
-              className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-panel-2"
+              className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-panel-2 pointer-coarse:min-h-11"
               aria-expanded={open === table}
             >
               <span className="text-muted">{open === table ? '▾' : '▸'}</span>

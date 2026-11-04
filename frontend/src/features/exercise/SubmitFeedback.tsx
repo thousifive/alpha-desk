@@ -51,11 +51,17 @@ export function SubmitFeedback({ out, nextSlug, branchId }: Props) {
       {out.passed && (
         <div className="mt-2 flex gap-3 font-mono text-xs">
           {nextSlug ? (
-            <Link to={`/exercises/${nextSlug}`} className="text-amber hover:underline">
+            <Link
+              to={`/exercises/${nextSlug}`}
+              className="text-amber hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+            >
               NEXT TICKET →
             </Link>
           ) : (
-            <Link to={`/branches/${branchId}`} className="text-amber hover:underline">
+            <Link
+              to={`/branches/${branchId}`}
+              className="text-amber hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+            >
               BACK TO BRANCH →
             </Link>
           )}

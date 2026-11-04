@@ -20,6 +20,16 @@
 
 :root {
   color-scheme: dark;
+  /* Heights of the fixed chrome, including the notch / home-indicator insets (non-zero only
+     with viewport-fit=cover, i.e. the installed PWA on iOS). */
+  --header-h: calc(2.75rem + env(safe-area-inset-top));
+  --tabbar-h: calc(3.5rem + env(safe-area-inset-bottom));
+}
+
+/* Side padding that also clears the notch in landscape. */
+.safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
 }
 
 body {

@@ -34,7 +34,7 @@ export default function ExercisePage() {
 function Desk({ ex }: { ex: Exercise }) {
   const playable = ex.node_state === 'available' || ex.node_state === 'mastered'
   return (
-    <main className="grid min-h-0 flex-1 lg:h-[calc(100dvh-2.75rem)] lg:grid-cols-[minmax(320px,420px)_1fr]">
+    <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-var(--header-h))] lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
       <aside className="overflow-y-auto border-line p-5 lg:border-r">
         <TicketHeader ex={ex} />
         <div className="mt-4 text-sm text-ink/90">
@@ -44,6 +44,13 @@ function Desk({ ex }: { ex: Exercise }) {
           <p className="mt-3 font-mono text-xs text-up">✓ You've closed this ticket before.</p>
         )}
         {ex.type === 'sql' && <SchemaSection />}
+        {ex.type === 'python' && (
+          // Usable on a phone, just cramped: say so instead of hiding it.
+          <p className="mt-4 rounded border border-line bg-panel p-2 font-mono text-[11px] text-muted sm:hidden">
+            Best on iPad or desktop: longer code is easier with a keyboard. Everything works here
+            too.
+          </p>
+        )}
         {ex.type === 'python' && ex.packages.length > 0 && (
           <p className="mt-4 font-mono text-[11px] text-muted">
             packages: {ex.packages.join(', ')}
@@ -144,7 +151,7 @@ function SqlWorkbench({ ex }: { ex: Exercise }) {
   useHotkeys({ onRun: () => void run(), onSubmit: () => void submitNow() })
 
   return (
-    <section className="grid min-h-[70dvh] grid-rows-[minmax(200px,1fr)_auto_minmax(160px,1fr)] lg:min-h-0">
+    <section className="grid min-h-[70dvh] grid-cols-[minmax(0,1fr)] grid-rows-[minmax(200px,1fr)_auto_minmax(160px,1fr)] lg:min-h-0">
       <div className="min-h-0 border-b border-line">
         <CodeEditor
           language="sql"
@@ -158,17 +165,18 @@ function SqlWorkbench({ ex }: { ex: Exercise }) {
         <button
           onClick={() => void run()}
           disabled={!ready || running}
-          className="rounded border border-line px-3 py-1 font-mono text-xs hover:border-muted disabled:opacity-40"
+          className="min-h-11 rounded border border-line px-4 font-mono text-xs hover:border-muted disabled:opacity-40 pointer-fine:min-h-0 pointer-fine:px-3 pointer-fine:py-1"
         >
-          {running ? 'RUNNING…' : 'RUN'} <kbd className="ml-1 text-muted">⌘↵</kbd>
+          {running ? 'RUNNING…' : 'RUN'} <kbd className="ml-1 text-muted max-sm:hidden">⌘↵</kbd>
         </button>
         <div className="relative">
           <button
             onClick={() => void submitNow()}
             disabled={!ready || pending}
-            className="rounded bg-amber px-3 py-1 font-mono text-xs font-semibold text-bg disabled:opacity-40"
+            className="min-h-11 rounded bg-amber px-4 font-mono text-xs font-semibold text-bg disabled:opacity-40 pointer-fine:min-h-0 pointer-fine:px-3 pointer-fine:py-1"
           >
-            {pending ? 'GRADING…' : 'SUBMIT'} <kbd className="ml-1 opacity-60">⌘⇧↵</kbd>
+            {pending ? 'GRADING…' : 'SUBMIT'}{' '}
+            <kbd className="ml-1 opacity-60 max-sm:hidden">⌘⇧↵</kbd>
           </button>
           {overlay}
         </div>
@@ -221,13 +229,13 @@ function QuizWorkbench({ ex }: { ex: Exercise }) {
           <button
             onClick={submitNow}
             disabled={choice === null || pending || !!out?.passed}
-            className="rounded bg-amber px-4 py-2 font-mono text-xs font-semibold text-bg disabled:opacity-40"
+            className="min-h-11 rounded bg-amber px-5 font-mono text-xs font-semibold text-bg disabled:opacity-40"
           >
             {pending ? 'CHECKING…' : answered && !out.passed ? 'TRY AGAIN' : 'SUBMIT'}
           </button>
           {overlay}
         </div>
-        <span className="font-mono text-xs text-muted">
+        <span className="font-mono text-xs text-muted pointer-coarse:hidden">
           1–{ex.choices.length} to pick · ⌘⇧↵ to submit
         </span>
       </div>

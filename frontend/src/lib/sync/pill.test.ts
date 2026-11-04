@@ -19,7 +19,11 @@ describe('sync pill', () => {
       'Synced · 2h ago',
     )
     const off = pillView({ ...base, reachability: 'down' }, 14, NOW)
-    expect(off).toMatchObject({ text: 'Offline · 14 changes queued', tone: 'amber' })
+    expect(off).toMatchObject({
+      text: 'Offline · 14 changes queued',
+      short: 'Offline · 14',
+      tone: 'amber',
+    })
     expect(pillView({ ...base, reachability: 'down' }, 1, NOW).text).toBe(
       'Offline · 1 change queued',
     )

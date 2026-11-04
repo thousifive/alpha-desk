@@ -7,6 +7,7 @@ import { countEvents, getDeviceId, getMeta } from '../../lib/local/store'
 import { syncNow } from '../../lib/sync/controller'
 import { useSyncStatus } from '../../lib/sync/hooks'
 import { relativeTime } from '../../lib/sync/pill'
+import { useLogout } from '../../api/hooks'
 import { todoFromMessage } from '../../lib/todos'
 
 const EXPORT_REMINDER_DAYS = 14
@@ -124,6 +125,7 @@ export function SettingsPage() {
         )}
       </Panel>
       <SyncPanel cursor={d?.cursor ?? 0} rejected={d?.rejected ?? 0} />
+      <AccountPanel />
     </main>
   )
 }
@@ -166,6 +168,23 @@ function SyncPanel({ cursor, rejected }: { cursor: number; rejected: number }) {
         className="mt-4 min-h-11 rounded border border-line px-4 font-mono text-xs text-ink hover:bg-panel-2 disabled:opacity-40"
       >
         {s.syncing ? 'SYNCING…' : 'SYNC NOW'}
+      </button>
+    </Panel>
+  )
+}
+
+function AccountPanel() {
+  const logout = useLogout()
+  return (
+    <Panel title="ACCOUNT">
+      <p className="text-sm text-muted">
+        Logging out removes this device&apos;s login token. Your progress stays on the device.
+      </p>
+      <button
+        onClick={() => logout.mutate()}
+        className="mt-4 min-h-11 rounded border border-line px-4 font-mono text-xs text-ink hover:bg-panel-2"
+      >
+        LOG OUT
       </button>
     </Panel>
   )
