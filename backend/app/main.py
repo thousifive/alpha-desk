@@ -10,7 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import get_settings
 from app.content.loader import get_content, sync_content
 from app.db import dispose_engine, get_sessionmaker
-from app.routers import auth, branches, datasets, exercises, offline, progress, quests, sync
+from app.routers import auth, branches, datasets, exercises, health, offline, progress, quests, sync
 
 
 # lifespan replaces the old @app.on_event("startup"/"shutdown") hooks: code before
@@ -57,12 +57,9 @@ def create_app() -> FastAPI:
         quests.router,
         offline.router,
         sync.router,
+        health.router,
     ):
         app.include_router(r)
-
-    @app.get("/api/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
 
     return app
 

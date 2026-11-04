@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     # "https://alpha-desk.netlify.app". Empty = same-origin only (the Vite dev proxy).
     cors_origins: str = ""
 
+    # Shown by /health so you can tell which machine is serving (dev Mac vs Linux laptop).
+    # Inside Docker the OS hostname is a container id, so `make serve` passes the host's.
+    server_name: str = ""
+    # Where `alpha-desk backup` writes, and how many backups it keeps.
+    backup_dir: Path = REPO_ROOT / "backups"
+    backup_keep: int = 14
+    # Login attempts allowed per client IP per window (brute-force guard).
+    login_rate_limit: int = 10
+    login_rate_window_s: int = 15 * 60
+
     content_dir: Path = REPO_ROOT / "content"
     dataset_dir: Path = REPO_ROOT / "data" / "meridian"
     sync_content_on_startup: bool = True
