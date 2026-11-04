@@ -65,3 +65,15 @@ async def test_legacy_endpoint(authed_client: AsyncClient) -> None:
     body = (await authed_client.get("/api/offline/legacy-events")).json()
     events = EVENT_LIST.validate_python(body)
     assert [e.type for e in events] == ["attempt", "xp_awarded", "quest_completed"]
+
+
+async def test_bundle_carries_dataset_version(authed_client: AsyncClient) -> None:
+    from app.content.bundle import build_bundle
+    from app.grading.dataset import dataset_version
+
+    body = (await authed_client.get("/api/offline/bundle")).json()
+    assert body["dataset_version"] == dataset_version(get_settings().dataset_dir)
+    assert len(body["dataset_version"]) == 12
+    # A re-seeded dataset must change the bundle version, or devices keep old parquet URLs.
+    a = build_bundle(BUNDLE, "M2", "aaa")["version"]
+    assert a != build_bundle(BUNDLE, "M2", "bbb")["version"]

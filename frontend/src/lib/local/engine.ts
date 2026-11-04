@@ -15,6 +15,7 @@ import { eventsAfter, getCache } from './store'
 export interface Bundle {
   version: string
   milestone: string
+  dataset_version?: string // hash of the parquet files; versions their download URLs
   content: unknown // validated by ContentBundle in the worker
 }
 

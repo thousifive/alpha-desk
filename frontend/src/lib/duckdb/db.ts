@@ -6,7 +6,11 @@ import mvpWorker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url
 import ehWasm from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url'
 import mvpWasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
 
+import { API_BASE } from '../../api/client'
 import type { ResultSet } from '../../api/types'
+import { getToken } from '../auth/token'
+import type { Bundle } from '../local/engine'
+import { getCache } from '../local/store'
 import { normalizeTable } from './normalize'
 
 /** Must match backend/app/grading/dataset.py. */
@@ -54,9 +58,16 @@ async function init(onProgress?: (p: LoadProgress) => void): Promise<duckdb.Asyn
   const conn = await db.connect()
   let loaded = 0
   onProgress?.({ loaded, total: TABLES.length })
+  // ?v= makes each dataset version its own URL, so the service worker can cache-first the
+  // files (works offline) and still pick up a re-seeded dataset.
+  const v = (await getCache<Bundle>('bundle'))?.dataset_version ?? '0'
+  const token = getToken()
   await Promise.all(
     TABLES.map(async (t) => {
-      const res = await fetch(`/api/datasets/meridian/${t}.parquet`, { credentials: 'same-origin' })
+      const res = await fetch(`${API_BASE}/api/datasets/meridian/${t}.parquet?v=${v}`, {
+        credentials: 'same-origin',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
       if (!res.ok) throw new Error(`Failed to load ${t} (${res.status})`)
       await db.registerFileBuffer(`${t}.parquet`, new Uint8Array(await res.arrayBuffer()))
       onProgress?.({ loaded: ++loaded, total: TABLES.length })

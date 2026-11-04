@@ -11,6 +11,7 @@ from app.content.bundle import build_bundle
 from app.deps import ContentDep, SessionDep, SettingsDep
 from app.events.legacy import legacy_events
 from app.events.schema import EVENT_LIST
+from app.grading.dataset import dataset_version
 from app.models import Attempt, Quest, QuestItem, XpEvent
 
 router = APIRouter(prefix="/api/offline", tags=["offline"])
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/api/offline", tags=["offline"])
 @router.get("/bundle")
 async def bundle(_: AuthRequired, content: ContentDep, settings: SettingsDep) -> dict[str, Any]:
     # Behind auth, so the grading data in it isn't public on the internet.
-    return build_bundle(content, settings.current_milestone)
+    return build_bundle(content, settings.current_milestone, dataset_version(settings.dataset_dir))
 
 
 @router.get("/legacy-events")

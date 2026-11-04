@@ -7,11 +7,22 @@ from typing import Any
 from app.content.schema import ContentBundle
 
 
-def build_bundle(content: ContentBundle, milestone: str) -> dict[str, Any]:
+def build_bundle(
+    content: ContentBundle, milestone: str, dataset_version: str = ""
+) -> dict[str, Any]:
     """All content *including* grading data (solutions, quiz answers, hidden tests), so the
-    device can grade offline: acceptable for a single-player app (see docs/SPEC.md)."""
+    device can grade offline: acceptable for a single-player app (see docs/SPEC.md).
+
+    `dataset_version` goes into the hash too: a regenerated dataset must change the version,
+    or devices would keep their cached bundle and with it the old parquet URLs.
+    """
     body = content.model_dump(mode="json")
     # sort_keys makes the hash stable across runs (dict order alone isn't a content change).
-    raw = json.dumps({"c": body, "m": milestone}, sort_keys=True)
+    raw = json.dumps({"c": body, "m": milestone, "d": dataset_version}, sort_keys=True)
     version = hashlib.sha256(raw.encode()).hexdigest()[:16]
-    return {"version": version, "milestone": milestone, "content": body}
+    return {
+        "version": version,
+        "milestone": milestone,
+        "dataset_version": dataset_version,
+        "content": body,
+    }
