@@ -18,12 +18,15 @@ export function LoginPage() {
     login.mutate(password)
   }
 
+  const status = login.error instanceof ApiError ? login.error.status : null
   const error =
-    login.error instanceof ApiError && login.error.status === 401
+    status === 401
       ? 'Access denied.'
-      : login.error
-        ? 'Login failed. Is the backend running?'
-        : null
+      : status === 429
+        ? login.error?.message // "Too many attempts. Try again in N min."
+        : login.error
+          ? 'Login failed. Is the backend running?'
+          : null
 
   return (
     <main className="grid min-h-dvh place-items-center px-4">

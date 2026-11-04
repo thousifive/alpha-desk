@@ -6,9 +6,20 @@ from app.auth import SESSION_KEY, AuthRequired, issue_token, verify_password
 from app.config import Settings, get_settings
 from app.deps import SessionDep
 from app.game.service import get_user, valid_timezone
+from app.ratelimit import SlidingWindow, client_key, enforce
 from app.schemas import LoginRequest, MeResponse, TimezoneIn, TokenOut
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+_login_limiter: SlidingWindow | None = None
+
+
+def login_limiter(settings: Settings) -> SlidingWindow:
+    """Built lazily from settings (tests change them); one per process."""
+    global _login_limiter
+    if _login_limiter is None:
+        _login_limiter = SlidingWindow(settings.login_rate_limit, settings.login_rate_window_s)
+    return _login_limiter
 
 
 @router.post("/login", response_model=TokenOut)
@@ -18,8 +29,13 @@ async def login(
     settings: Annotated[Settings, Depends(get_settings)],
     session: SessionDep,
 ) -> TokenOut:
+    # Counted before checking the password, so guesses are throttled whether right or wrong;
+    # a successful login clears the count. argon2 already makes each guess slow (~50 ms).
+    limiter = login_limiter(settings)
+    enforce(limiter, request)
     if not verify_password(body.password, settings.app_password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong password")
+    limiter.reset(client_key(request))
     # Clear before setting: a fresh session on login avoids session fixation.
     request.session.clear()
     request.session[SESSION_KEY] = True
