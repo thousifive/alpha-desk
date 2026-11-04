@@ -64,6 +64,10 @@ class Attempt(SQLModel, table=True):
     # Player-local calendar day, frozen at insert time. Streaks group by this; recomputing it
     # from created_at later would shift days if the player changes timezone.
     local_date: date = Field(index=True)
+    # Set when the row was derived from a synced event (app.sync.derive); NULL for rows the
+    # old server-side submit wrote. Unique, so applying the same event twice can't double it,
+    # and it keeps derived rows out of the legacy export (they're already events).
+    event_id: str | None = Field(default=None, unique=True, max_length=36)
 
 
 class XpEvent(SQLModel, table=True):

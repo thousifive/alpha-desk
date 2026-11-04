@@ -25,7 +25,15 @@ async def bundle(_: AuthRequired, content: ContentDep, settings: SettingsDep) ->
 @router.get("/legacy-events")
 async def legacy(_: AuthRequired, session: SessionDep) -> Response:
     """Progress recorded before the event log existed, as events. Imported once per device."""
-    attempts = list((await session.exec(select(Attempt).order_by(col(Attempt.id)))).all())
+    # Only rows the old server-side submit wrote. Rows derived from synced events are
+    # already in the event log; exporting them again would count each attempt twice.
+    attempts = list(
+        (
+            await session.exec(
+                select(Attempt).where(col(Attempt.event_id).is_(None)).order_by(col(Attempt.id))
+            )
+        ).all()
+    )
     xp = list((await session.exec(select(XpEvent).order_by(col(XpEvent.id)))).all())
     rows = await session.exec(
         select(Quest, QuestItem).where(col(QuestItem.quest_id) == col(Quest.id))

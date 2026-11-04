@@ -355,3 +355,18 @@ async def test_quest_plans_cover_the_next_three_days(
 async def test_quest_plan_days_are_bounded(authed_client: AsyncClient) -> None:
     assert (await authed_client.get("/api/sync/quests?from=2026-11-04&days=8")).status_code == 422
     assert (await authed_client.get("/api/sync/quests")).status_code == 422
+
+
+async def test_legacy_export_skips_rows_derived_from_synced_events(
+    authed_client: AsyncClient,
+) -> None:
+    # A fresh iPad imports legacy events *and* pulls the log; a derived row in both would
+    # count the phone's attempt twice.
+    await _store(ev(1, device="phone", exercise_slug="sql-first-look", passed=True))
+    async with get_sessionmaker()() as s:
+        await refresh_derived(s, BUNDLE)
+        s.add(Attempt(exercise_slug="sql-first-look", passed=False, local_date=date(2026, 1, 1)))
+        await s.commit()
+    legacy = (await authed_client.get("/api/offline/legacy-events")).json()
+    attempts = [e for e in legacy if e["type"] == "attempt"]
+    assert [e["local_date"] for e in attempts] == ["2026-01-01"]

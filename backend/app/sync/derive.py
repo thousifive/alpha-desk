@@ -75,6 +75,7 @@ async def _apply(session: AsyncSession, row: SyncEvent, user: User, exercises: s
                     duration_ms=p.duration_ms,
                     created_at=ev.created_at,
                     local_date=ev.local_date,
+                    event_id=row.id,
                 )
             )
         case XpAwardedEvent(payload=p):
