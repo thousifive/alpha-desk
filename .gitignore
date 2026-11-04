@@ -17,6 +17,12 @@ __pycache__/
 *.egg-info/
 backend/*.db
 backend/*.db-journal
+backend/*.db-wal
+backend/*.db-shm
+
+# Self-hosted backend state (docker-compose.yml mounts)
+data/alpha.db*
+backups/
 
 # Node
 node_modules/

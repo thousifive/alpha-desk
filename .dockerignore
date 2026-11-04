@@ -1,0 +1,12 @@
+# Allowlist: the image needs only the backend code. Content, the dataset and the database are
+# mounted at runtime; secrets (backend/.env) are passed as env vars, never baked in.
+*
+!backend/app
+!backend/alembic
+!backend/alembic.ini
+!backend/prompts
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/docker-entrypoint.sh
+**/__pycache__
+**/*.pyc

@@ -1,0 +1,45 @@
+# The backend, the same way on any machine: `make serve` (dev Mac) or systemd (Linux laptop).
+# Everything machine-specific is in backend/.env and the mounted folders, never in the image.
+name: alpha-desk
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-}
+    image: alpha-desk-api:latest
+    restart: unless-stopped
+    # Your uid/gid (set by scripts/serve.sh), so ./data and ./backups stay owned by you.
+    user: "${ALPHA_UID:-1000}:${ALPHA_GID:-1000}"
+    env_file:
+      - path: backend/.env
+        required: true
+    environment:
+      # Container paths. These override anything in backend/.env meant for running bare-metal.
+      DATABASE_URL: sqlite+aiosqlite:////data/alpha.db
+      CONTENT_DIR: /content
+      DATASET_DIR: /data/meridian
+      BACKUP_DIR: /backups
+      SERVER_NAME: ${ALPHA_HOST:-}
+    volumes:
+      - ./data:/data # alpha.db (+ -wal/-shm) and the meridian/ parquet dataset
+      - ./content:/content:ro
+      - ./backups:/backups
+    ports:
+      # Loopback only: nothing on your LAN or the internet reaches it directly. Remote access
+      # goes through Tailscale later (docs/DEPLOY.md).
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    # Give uvicorn time to finish in-flight requests (and SQLite to checkpoint) on stop.
+    stop_grace_period: 20s

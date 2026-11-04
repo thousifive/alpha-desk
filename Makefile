@@ -1,4 +1,4 @@
-.PHONY: install dev dev-backend dev-frontend test test-backend test-frontend lint fmt seed sync-content
+.PHONY: install dev dev-backend dev-frontend test test-backend test-frontend lint fmt seed sync-content serve backup stop logs
 
 install:
 	cd backend && uv sync
@@ -35,3 +35,18 @@ seed:
 
 sync-content:
 	cd backend && uv run alpha-desk sync-content
+
+# ---- self-hosted backend (Docker) -------------------------------------------------------
+# Session server on this machine; Ctrl+C stops it and writes a backup. See docs/DEPLOY.md.
+serve:
+	scripts/serve.sh
+
+# Snapshot data/alpha.db into backups/ (SQLite backup API), keeping the newest 14.
+backup:
+	scripts/backup.sh
+
+stop:
+	. scripts/env.sh && docker compose stop
+
+logs:
+	. scripts/env.sh && docker compose logs -f api
