@@ -57,12 +57,26 @@ export const TODOS = {
     persona: 'lena',
     story: "CI can't grade Python until your report checker is merged.",
   },
+  'M2.5-1': {
+    id: 'M2.5-1',
+    fn: 'ingest_events',
+    file: 'backend/app/sync/ingest.py',
+    persona: 'priya',
+    story: "Your progress is safe on this device. It'll reach the server once ingestion is merged.",
+  },
+  'M2.5-2': {
+    id: 'M2.5-2',
+    fn: 'events_since',
+    file: 'backend/app/sync/query.py',
+    persona: 'priya',
+    story: "Your other devices' progress arrives once the event feed is paginated.",
+  },
 } as const satisfies Record<string, TodoTask>
 
 export type TodoId = keyof typeof TODOS
 
 /** Find which TODO(me) a backend 501 message names, e.g. "Grader offline: TODO(me) M2-3: …". */
 export function todoFromMessage(message: string): TodoTask | null {
-  const id = /TODO\(me\) (#\d+|M\d+-\d+)/.exec(message)?.[1]
+  const id = /TODO\(me\) (#\d+|M[\d.]+-\d+)/.exec(message)?.[1]
   return id && id in TODOS ? TODOS[id as TodoId] : null
 }

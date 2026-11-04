@@ -30,6 +30,9 @@ export interface QuestPlan {
   items: [number, string][] // [position, exercise slug]
 }
 
+/** Cache key for a day's quest plan (written by sync, read by the quest board and submit). */
+export const questPlanKey = (day: string) => `quest_plan:${day}`
+
 export interface SubmitRequest {
   slug: string
   attempt: AttemptIn

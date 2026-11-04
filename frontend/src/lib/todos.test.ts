@@ -13,6 +13,9 @@ describe('todoFromMessage', () => {
       'grade_python_report',
     )
     expect(todoFromMessage('Grader offline: TODO(me) #3: compare_result_sets')?.id).toBe('#3')
+    expect(todoFromMessage('Sync offline: TODO(me) M2.5-1: implement ingest_events')?.fn).toBe(
+      'ingest_events',
+    )
   })
 
   it('returns null for unknown or missing ids', () => {

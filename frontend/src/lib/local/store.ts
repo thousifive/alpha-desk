@@ -1,8 +1,8 @@
 import { getDB, type StoredEvent } from './db'
 import type { LogEvent } from './events'
 
-// The event log API. There is deliberately no update or delete: events are facts, and an
-// unsynced event may be the only copy of that progress anywhere.
+// The event log API. There is deliberately no delete and no update beyond the `synced` flag:
+// events are facts, and an unsynced event may be the only copy of that progress anywhere.
 
 type Listener = () => void
 const listeners = new Set<Listener>()
@@ -14,6 +14,9 @@ function notify(broadcast = true) {
   for (const fn of listeners) fn()
   if (broadcast) channel?.postMessage('changed')
 }
+
+/** Something derived state depends on changed outside the log (e.g. a new content bundle). */
+export const notifyChanged = () => notify()
 
 export function onLogChange(fn: Listener): () => void {
   listeners.add(fn)
@@ -40,11 +43,17 @@ export async function getDeviceId(): Promise<string> {
 export async function mergeEvents(events: LogEvent[], { synced = false } = {}): Promise<number> {
   if (events.length === 0) return 0
   const db = getDB()
+  let upgraded = 0
   const added = await db.transaction('rw', db.events, async () => {
     const ids = [...new Set(events.map((e) => e.id))]
-    const existing = new Set(
-      (await db.events.where('id').anyOf(ids).toArray()).map((e: StoredEvent) => e.id),
-    )
+    const stored = await db.events.where('id').anyOf(ids).toArray()
+    const existing = new Set(stored.map((e: StoredEvent) => e.id))
+    if (synced) {
+      // The server has these, so a local copy still marked unsynced (we crashed between the
+      // upload succeeding and marking it) doesn't need uploading again.
+      const stale = stored.filter((e) => e.synced === 0).map((e) => e.lseq!)
+      upgraded = await db.events.where('lseq').anyOf(stale).modify({ synced: 1 })
+    }
     const seen = new Set<string>()
     const fresh: StoredEvent[] = []
     for (const e of events) {
@@ -65,8 +74,23 @@ export async function mergeEvents(events: LogEvent[], { synced = false } = {}): 
     await db.events.bulkAdd(fresh)
     return fresh.length
   })
-  if (added) notify()
+  if (added || upgraded) notify()
   return added
+}
+
+/** The oldest `limit` events not yet on the server, in the order they were written. */
+export async function unsyncedBatch(limit: number): Promise<StoredEvent[]> {
+  // Compound filter instead of a [synced+lseq] index: the unsynced set is small (it only
+  // holds what was written while offline), so scanning it is cheap.
+  const rows = await getDB().events.where('synced').equals(0).sortBy('lseq')
+  return rows.slice(0, limit)
+}
+
+/** The server confirmed these (accepted or already had them). The only field ever updated. */
+export async function markSynced(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  await getDB().events.where('id').anyOf(ids).modify({ synced: 1 })
+  notify()
 }
 
 export async function eventsAfter(lseq: number): Promise<StoredEvent[]> {

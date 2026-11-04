@@ -1,19 +1,11 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
-import { ApiError, api } from '../../api/client'
-import type { AttemptIn, AttemptOut, QuestBoard } from '../../api/types'
-import { getEngine, NoBundleError, type Bundle, type QuestPlan, type Snapshot } from './engine'
-import { localDate, type LogEvent } from './events'
-import { requestPersistence } from './persist'
-import {
-  getCache,
-  getDeviceId,
-  getMeta,
-  mergeEvents,
-  onLogChange,
-  setCache,
-  setMeta,
-} from './store'
+import { ApiError } from '../../api/client'
+import type { AttemptIn, AttemptOut } from '../../api/types'
+import { getSyncStatus } from '../sync/controller'
+import { getEngine, NoBundleError, questPlanKey, type QuestPlan, type Snapshot } from './engine'
+import { localDate } from './events'
+import { getCache, getDeviceId, mergeEvents, onLogChange, setCache } from './store'
 
 // Progress hooks backed by the local event log. They return the same shapes the old
 // server-backed hooks did, so screens don't care where the numbers come from.
@@ -78,27 +70,18 @@ export function useExercise(slug: string) {
 export class NoQuestPlanError extends Error {
   constructor() {
     super("Priya hasn't sent today's tickets yet. They arrive the next time the server is on.")
+    this.name = 'NoQuestPlanError'
   }
 }
 
-const planKey = (day: string) => `quest_plan:${day}`
-
 async function todaysPlan(day: string): Promise<QuestPlan> {
-  const cached = await getCache<QuestPlan>(planKey(day))
+  // Plans arrive with each sync, three days ahead (GET /sync/quests), so this is a cache read.
+  const cached = await getCache<QuestPlan>(questPlanKey(day))
   if (cached) return cached
-  let board: QuestBoard
-  try {
-    board = await api.get<QuestBoard>('/quests/today')
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 501) throw e // locked TODO(me): keep the id
-    throw new NoQuestPlanError()
-  }
-  // Only the plan (which exercise in which slot) comes from the server; completion is derived
-  // from the local log, so quests closed offline stay closed.
-  const plan: QuestPlan = { day: board.day, items: board.items.map((i) => [i.position, i.slug]) }
-  await setCache(planKey(board.day), plan)
-  if (board.day !== day) throw new NoQuestPlanError()
-  return plan
+  // The planner is a TODO(me): surface its 501 so the board shows which task unlocks it.
+  const lock = getSyncStatus().locked.find((m) => m.startsWith('Quest board offline'))
+  if (lock) throw new ApiError(501, lock)
+  throw new NoQuestPlanError()
 }
 
 export function useQuests() {
@@ -134,7 +117,7 @@ export function useSubmitAttempt(slug: string) {
       const today = localDate()
       const inputs = await engine.gradingInputs(slug)
       const expected = inputs?.solution_sql ? await sqlExpected(inputs.solution_sql) : undefined
-      const plan = await getCache<QuestPlan>(planKey(today))
+      const plan = await getCache<QuestPlan>(questPlanKey(today))
       const res = await engine.submit({
         slug,
         attempt,
@@ -151,36 +134,5 @@ export function useSubmitAttempt(slug: string) {
       return res.out
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: lk.all }),
-  })
-}
-
-// ---- bootstrap ------------------------------------------------------------------------
-
-/**
- * While the server is reachable: refresh the content bundle and, once per device, import the
- * progress recorded before the event log existed. Failures are silent: offline is normal.
- */
-export function useOfflineBootstrap() {
-  const qc = useQueryClient()
-  return useQuery({
-    queryKey: ['bootstrap'],
-    queryFn: async () => {
-      void requestPersistence()
-      const bundle = await api.get<Bundle>('/offline/bundle')
-      const current = await getCache<Bundle>('bundle')
-      if (current?.version !== bundle.version) {
-        await setCache('bundle', bundle)
-        void qc.invalidateQueries({ queryKey: lk.all })
-      }
-      if (!(await getMeta<boolean>('legacy_imported'))) {
-        const legacy = await api.get<LogEvent[]>('/offline/legacy-events')
-        // Marked synced: they came *from* the server, there's nothing to upload.
-        await mergeEvents(legacy, { synced: true })
-        await setMeta('legacy_imported', true)
-      }
-      return bundle.version
-    },
-    staleTime: 5 * 60_000,
-    retry: false,
   })
 }

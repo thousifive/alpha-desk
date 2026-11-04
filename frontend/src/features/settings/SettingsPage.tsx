@@ -4,6 +4,10 @@ import { useRef, useState } from 'react'
 import { Panel } from '../../components/ui'
 import { BackupFormatError, downloadBackup, importBackup } from '../../lib/local/backup'
 import { countEvents, getDeviceId, getMeta } from '../../lib/local/store'
+import { syncNow } from '../../lib/sync/controller'
+import { useSyncStatus } from '../../lib/sync/hooks'
+import { relativeTime } from '../../lib/sync/pill'
+import { todoFromMessage } from '../../lib/todos'
 
 const EXPORT_REMINDER_DAYS = 14
 
@@ -16,6 +20,8 @@ function useStorageInfo() {
       device: await getDeviceId(),
       persisted: await getMeta<boolean>('persisted'),
       lastExport: await getMeta<string>('last_export_at'),
+      cursor: (await getMeta<number>('sync_cursor')) ?? 0,
+      rejected: (await getMeta<number>('sync_rejected')) ?? 0,
     }),
   })
 }
@@ -117,6 +123,50 @@ export function SettingsPage() {
           </p>
         )}
       </Panel>
+      <SyncPanel cursor={d?.cursor ?? 0} rejected={d?.rejected ?? 0} />
     </main>
+  )
+}
+
+function SyncPanel({ cursor, rejected }: { cursor: number; rejected: number }) {
+  const s = useSyncStatus()
+  const online = s.reachability === 'up'
+  return (
+    <Panel title="SYNC">
+      <dl className="grid grid-cols-2 gap-y-1.5 font-mono text-xs">
+        <dt className="text-muted">Server</dt>
+        <dd className="text-right">
+          {online ? 'on' : s.reachability === 'down' ? 'off / unreachable' : 'checking…'}
+        </dd>
+        <dt className="text-muted">Last full sync</dt>
+        <dd className="text-right">{s.lastSyncAt ? relativeTime(s.lastSyncAt) : 'never'}</dd>
+        <dt className="text-muted">Server cursor</dt>
+        <dd className="text-right">{cursor}</dd>
+        {rejected > 0 && (
+          <>
+            <dt className="text-muted">Rejected by server</dt>
+            <dd className="text-right text-amber">{rejected}</dd>
+          </>
+        )}
+      </dl>
+      {s.locked.map((m) => {
+        const t = todoFromMessage(m)
+        return (
+          <p
+            key={m}
+            className="mt-3 rounded border border-amber/30 bg-amber/5 p-2 text-xs text-amber"
+          >
+            {t ? `Waiting on TODO(me) ${t.id}: ${t.fn}() in ${t.file}` : m}
+          </p>
+        )
+      })}
+      <button
+        onClick={() => void syncNow()}
+        disabled={!online || s.syncing}
+        className="mt-4 min-h-11 rounded border border-line px-4 font-mono text-xs text-ink hover:bg-panel-2 disabled:opacity-40"
+      >
+        {s.syncing ? 'SYNCING…' : 'SYNC NOW'}
+      </button>
+    </Panel>
   )
 }

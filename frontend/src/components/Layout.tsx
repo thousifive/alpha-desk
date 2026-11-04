@@ -1,19 +1,21 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
 
-import { browserTimezone, useLogout, useProgress, useSyncTimezone } from '../api/hooks'
-import { useOfflineBootstrap } from '../lib/local/hooks'
+import { useLogout, useProgress } from '../api/hooks'
+import { requestPersistence } from '../lib/local/persist'
+import { startSync } from '../lib/sync/controller'
+import { SyncPill } from './SyncPill'
 
 export function Layout() {
   const progress = useProgress()
   const logout = useLogout()
-  const syncTz = useSyncTimezone()
-  useOfflineBootstrap()
+  const qc = useQueryClient()
   const p = progress.data
 
-  // Once per app load: keeps "today" right if the player travels after logging in.
-  const { mutate: syncTimezone } = syncTz
-  useEffect(() => syncTimezone(browserTimezone()), [syncTimezone])
+  // Health checks + sync for as long as the logged-in shell is mounted.
+  useEffect(() => startSync(qc), [qc])
+  useEffect(() => void requestPersistence(), [])
 
   const navCls = ({ isActive }: { isActive: boolean }) =>
     `px-2 py-1 rounded ${isActive ? 'text-amber bg-panel-2' : 'text-muted hover:text-ink'}`
@@ -46,6 +48,7 @@ export function Layout() {
               <span className="text-amber">{p.xp_total.toLocaleString()}</span> XP
             </span>
           )}
+          <SyncPill />
           <NavLink to="/settings" className={navCls}>
             SETTINGS
           </NavLink>
