@@ -1,52 +1,27 @@
-from dataclasses import dataclass
-
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 
 from app.auth import AuthRequired
-from app.content.schema import (
-    BranchDef,
-    ContentBundle,
-    ExerciseDef,
-    NodeDef,
-    PythonExercise,
-    QuizExercise,
-    SqlExercise,
-)
+from app.content.schema import ContentBundle, PythonExercise, QuizExercise, SqlExercise
 from app.deps import ContentDep, SessionDep, SettingsDep
-from app.game.daily import (
-    active_days,
-    award_streak_milestone,
-    complete_quest_item,
-    streak_out,
-    streak_state,
-)
-from app.game.service import award_xp, get_user, level_out, local_today, passed_slugs
+from app.game.daily import active_days, award_streak_milestone, complete_quest_item
+from app.game.service import award_xp, get_user, local_today, passed_slugs
 from app.game.unlocks import is_mastered, node_states
 from app.game.xp import xp_for_attempt
 from app.grading.python import ReportedTest, declared_test_names, grade_python_report
 from app.grading.sql import ResultSet, compare_result_sets, expected_result
 from app.models import Attempt
 from app.schemas import AttemptIn, AttemptOut, ExerciseOut, HiddenTestsOut
+from app.views import Located, exercise_view, level_out, locate, streak_out, streak_state
 
 router = APIRouter(prefix="/api/exercises", tags=["exercises"])
 
 
-@dataclass(frozen=True)
-class _Located:
-    branch: BranchDef
-    node: NodeDef
-    exercise: ExerciseDef
-    index: int
-
-
-def _locate(content: ContentBundle, slug: str) -> _Located:
-    for branch in content.branches:
-        for node in content.nodes[branch.id]:
-            for i, ex in enumerate(node.exercises):
-                if ex.slug == slug:
-                    return _Located(branch, node, ex, i)
-    raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown exercise")
+def _locate(content: ContentBundle, slug: str) -> Located:
+    loc = locate(content, slug)
+    if loc is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown exercise")
+    return loc
 
 
 def _todo_501(err: NotImplementedError) -> HTTPException:
@@ -58,34 +33,14 @@ def _todo_501(err: NotImplementedError) -> HTTPException:
 async def get_exercise(
     slug: str, _: AuthRequired, session: SessionDep, content: ContentDep, settings: SettingsDep
 ) -> ExerciseOut:
-    loc = _locate(content, slug)
-    passed = await passed_slugs(session)
-    state = node_states(content, passed, settings.current_milestone)[loc.node.slug].state
-    ex = loc.exercise
-    siblings = loc.node.exercises
-    return ExerciseOut(
-        slug=ex.slug,
-        title=ex.title,
-        type=ex.type,
-        persona=ex.persona,
-        difficulty=ex.difficulty,
-        prompt_md=ex.prompt,
-        starter_code=ex.starter_code if isinstance(ex, SqlExercise | PythonExercise) else "",
-        choices=list(ex.choices) if isinstance(ex, QuizExercise) else [],
-        branch_id=loc.branch.id,
-        node_slug=loc.node.slug,
-        node_title=loc.node.title,
-        node_state=state,
-        passed=ex.slug in passed,
-        next_slug=siblings[loc.index + 1].slug if loc.index + 1 < len(siblings) else None,
-        visible_tests=ex.visible_tests if isinstance(ex, PythonExercise) else "",
-        packages=list(ex.packages) if isinstance(ex, PythonExercise) else [],
-        timeout_s=ex.timeout_s if isinstance(ex, PythonExercise) else 10,
-    )
+    out = exercise_view(content, slug, await passed_slugs(session), settings.current_milestone)
+    if out is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown exercise")
+    return out
 
 
 async def _require_open(
-    loc: _Located, session: SessionDep, content: ContentBundle, milestone: str
+    loc: Located, session: SessionDep, content: ContentBundle, milestone: str
 ) -> set[str]:
     passed = await passed_slugs(session)
     state = node_states(content, passed, milestone)[loc.node.slug].state

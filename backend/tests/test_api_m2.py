@@ -13,9 +13,9 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
-import app.game.daily as daily
 import app.game.quests as quests
 import app.routers.exercises as exercises
+import app.views as views
 from app.config import get_settings
 from app.content.loader import load_content, sync_content
 from app.content.schema import PythonExercise
@@ -57,7 +57,7 @@ def fakes(monkeypatch: pytest.MonkeyPatch, m2: None) -> None:
     monkeypatch.setattr(exercises, "grade_python_report", lambda *_: PythonGrade(True, ""))
     # A fixed 7-day streak that's active today: enough to exercise milestone payouts.
     monkeypatch.setattr(
-        daily, "compute_streak", lambda *_: StreakState(7, 7, 1, True, STREAK_RUN_START)
+        views, "compute_streak", lambda *_: StreakState(7, 7, 1, True, STREAK_RUN_START)
     )
 
 

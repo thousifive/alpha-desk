@@ -11,10 +11,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.content.schema import ContentBundle
 from app.game.quests import Candidate, day_rng, node_weakness, plan_quests
 from app.game.service import award_xp
-from app.game.streaks import StreakState, compute_streak, streak_milestone
+from app.game.streaks import StreakState, streak_milestone
 from app.game.unlocks import PLAYABLE_TYPES, node_states
 from app.models import Attempt, Quest, QuestItem, User
-from app.schemas import QuestItemOut, QuestOut, StreakOut
+from app.schemas import QuestOut
+from app.views import quest_view
 
 # ---- streak ---------------------------------------------------------------------------
 
@@ -22,28 +23,6 @@ from app.schemas import QuestItemOut, QuestOut, StreakOut
 async def active_days(session: AsyncSession) -> set[date]:
     rows = await session.exec(select(Attempt.local_date).where(Attempt.passed).distinct())
     return set(rows.all())
-
-
-def streak_state(days: set[date], today: date, content: ContentBundle) -> StreakState | None:
-    try:
-        return compute_streak(days, today, content.quests.streaks)
-    except NotImplementedError:
-        return None  # TODO(me) M2-1 not done yet: the UI shows "streak offline"
-
-
-def streak_out(state: StreakState | None, content: ContentBundle) -> StreakOut | None:
-    if state is None:
-        return None
-    every = content.quests.streaks.milestone_every
-    return StreakOut(
-        current=state.current,
-        best=state.best,
-        freezes=state.freezes,
-        max_freezes=content.quests.streaks.max_freezes,
-        active_today=state.active_today,
-        # Next multiple of `every` strictly above current (7 → 14, 0 → 7).
-        next_milestone=(state.current // every + 1) * every,
-    )
 
 
 async def award_streak_milestone(
@@ -137,40 +116,11 @@ async def get_or_create_quest(
 
 
 def quest_out(quest: Quest, items: list[QuestItem], content: ContentBundle) -> QuestOut:
-    lookup = {
-        ex.slug: (b, n, ex)
-        for b in content.branches
-        for n in content.nodes[b.id]
-        for ex in n.exercises
-    }
-    rules = content.quests.quests
-    out: list[QuestItemOut] = []
-    for it in items:
-        if it.exercise_slug not in lookup:
-            continue
-        b, n, ex = lookup[it.exercise_slug]
-        out.append(
-            QuestItemOut(
-                position=it.position,
-                slug=ex.slug,
-                title=ex.title,
-                type=ex.type,
-                persona=ex.persona,
-                difficulty=ex.difficulty,
-                branch_id=b.id,
-                branch_title=b.title,
-                node_title=n.title,
-                minutes=rules.minutes_by_difficulty[ex.difficulty],
-                completed=it.completed_at is not None,
-            )
-        )
-    return QuestOut(
-        day=quest.day,
-        items=out,
-        xp_per_quest=rules.xp_per_quest,
-        all_done_bonus=rules.all_done_bonus,
-        done=bool(out) and all(i.completed for i in out),
-        est_minutes=sum(i.minutes for i in out),
+    return quest_view(
+        content,
+        quest.day,
+        [(it.position, it.exercise_slug) for it in items],
+        {it.position for it in items if it.completed_at is not None},
     )
 
 
