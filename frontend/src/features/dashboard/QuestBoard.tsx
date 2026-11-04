@@ -5,8 +5,10 @@ import { Link } from 'react-router'
 import { ApiError } from '../../api/client'
 import { useQuests } from '../../api/hooks'
 import type { QuestBoard as Board, QuestItem } from '../../api/types'
+import { Locked } from '../../components/Locked'
 import { Bar, Panel } from '../../components/ui'
 import { PERSONAS } from '../../lib/personas'
+import { TODOS, todoFromMessage } from '../../lib/todos'
 
 export function QuestBoard({ fallback }: { fallback: ReactNode }) {
   const q = useQuests()
@@ -19,16 +21,18 @@ export function QuestBoard({ fallback }: { fallback: ReactNode }) {
     )
   }
   if (q.isError) {
-    const offline = q.error instanceof ApiError && q.error.status === 501
+    const locked =
+      q.error instanceof ApiError && q.error.status === 501
+        ? (todoFromMessage(q.error.message) ?? TODOS['M2-2'])
+        : null
     return (
       <Panel title="UP NEXT" className="md:col-span-2">
-        {offline ? (
-          <p className="mb-3 text-xs text-down">
-            Quest board offline: finish TODO(me) M2-2{' '}
-            <code className="font-mono">weighted_sample</code>.
-          </p>
+        {locked ? (
+          <div className="mb-3">
+            <Locked task={locked} />
+          </div>
         ) : (
-          <p className="mb-3 text-xs text-down">Couldn't load today's quests.</p>
+          <p className="mb-3 text-xs text-muted">Couldn't load today's quests.</p>
         )}
         {fallback}
       </Panel>

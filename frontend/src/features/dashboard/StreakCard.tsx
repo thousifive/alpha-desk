@@ -1,14 +1,16 @@
 import type { Streak } from '../../api/types'
+import { Locked } from '../../components/Locked'
 import { Panel } from '../../components/ui'
+import { TODOS } from '../../lib/todos'
 
 export function StreakCard({ streak }: { streak: Streak | null }) {
   if (!streak) {
     return (
       <Panel title="STREAK">
         <p className="font-mono text-3xl text-muted">—</p>
-        <p className="mt-2 text-xs text-down">
-          Streak offline: finish TODO(me) M2-1 <code className="font-mono">compute_streak</code>.
-        </p>
+        <div className="mt-3">
+          <Locked task={TODOS['M2-1']} />
+        </div>
       </Panel>
     )
   }

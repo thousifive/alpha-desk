@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { useBranch } from '../../api/hooks'
 import type { SkillNode } from '../../api/types'
 import { Bar, StateBadge } from '../../components/ui'
+import { exercisesLabel, nodesLabel, ratio } from '../../lib/counts'
 import { PERSONAS } from '../../lib/personas'
 import { Difficulty } from '../exercise/TicketHeader'
 
@@ -23,10 +24,10 @@ export function BranchPage() {
         <p className="mt-1 text-sm text-muted">{b.description}</p>
         <div className="mt-4 flex items-center gap-3">
           <div className="flex-1">
-            <Bar value={b.n_exercises ? b.n_passed / b.n_exercises : 0} />
+            <Bar value={ratio(b)} />
           </div>
           <span className="font-mono text-xs text-muted">
-            {b.n_passed}/{b.n_exercises} tickets · {b.n_mastered}/{b.n_nodes} nodes
+            {exercisesLabel(b)} · {nodesLabel(b)}
           </span>
         </div>
         {!b.playable && (
@@ -38,19 +39,21 @@ export function BranchPage() {
         {b.nodes.map((n) => (
           <NodeCard key={n.slug} node={n} titles={titles} />
         ))}
-        {b.boss && (
-          <li className="relative">
+        {b.bosses.map((boss) => (
+          <li key={boss.title} className="relative">
             <span
-              className="absolute -left-[31px] top-3 size-3 rounded-full border-2 border-down bg-bg"
+              className="absolute -left-[31px] top-3 size-3 rounded-full border-2 border-violet bg-bg"
               aria-hidden
             />
-            <div className="rounded-lg border border-down/40 bg-down/5 p-4">
-              <p className="font-mono text-[11px] tracking-wider text-down">BOSS · M5</p>
-              <p className="mt-1 font-mono text-lg font-semibold">{b.boss.title}</p>
-              <p className="mt-1 text-sm text-muted">{b.boss.description}</p>
+            <div className="rounded-lg border border-violet/40 bg-violet/5 p-4">
+              <p className="font-mono text-[11px] tracking-wider text-violet">
+                BOSS{boss.stages > 1 && ` ${boss.stage}/${boss.stages}`} · M5
+              </p>
+              <p className="mt-1 font-mono text-lg font-semibold">{boss.title}</p>
+              <p className="mt-1 text-sm text-muted">{boss.description}</p>
             </div>
           </li>
-        )}
+        ))}
       </ol>
     </main>
   )
@@ -64,7 +67,6 @@ function NodeCard({ node, titles }: { node: SkillNode; titles: Record<string, st
     locked: 'bg-bg border-line',
     coming_soon: 'bg-bg border-line',
   }[node.state]
-  const passed = node.exercises.filter((e) => e.passed).length
   return (
     <li id={node.slug} className="relative scroll-mt-16">
       <span
@@ -89,9 +91,7 @@ function NodeCard({ node, titles }: { node: SkillNode; titles: Record<string, st
             )}
           </div>
           <div className="text-right font-mono text-[11px] text-muted">
-            <p>
-              {passed}/{node.exercises.length}
-            </p>
+            <p>{exercisesLabel(node)}</p>
             <p className="text-amber">+{node.xp_reward} bonus</p>
           </div>
         </div>

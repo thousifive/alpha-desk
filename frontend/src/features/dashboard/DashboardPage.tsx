@@ -2,8 +2,11 @@ import { Link } from 'react-router'
 
 import { useBranch, useBranches, useProgress } from '../../api/hooks'
 import type { BranchDetail, Progress } from '../../api/types'
+import { Locked } from '../../components/Locked'
 import { Bar, Panel } from '../../components/ui'
+import { exercisesLabel, nodesLabel, ratio } from '../../lib/counts'
 import { PERSONAS } from '../../lib/personas'
+import { TODOS } from '../../lib/todos'
 import { QuestBoard } from './QuestBoard'
 import { StreakCard } from './StreakCard'
 
@@ -44,15 +47,15 @@ export function DashboardPage() {
                   <span className="text-muted">{b.title}</span>
                 )}
                 <span className="font-mono text-[11px] text-muted">
-                  {b.playable ? `${b.n_passed}/${b.n_exercises}` : b.playable_from}
+                  {b.playable ? exercisesLabel(b) : `from ${b.playable_from}`}
                 </span>
               </div>
               <div className="mt-1">
-                <Bar
-                  value={b.n_exercises ? b.n_passed / b.n_exercises : 0}
-                  className={b.playable ? 'bg-amber' : 'bg-muted/40'}
-                />
+                <Bar value={ratio(b)} className={b.playable ? 'bg-amber' : 'bg-muted/40'} />
               </div>
+              {b.playable && (
+                <p className="mt-1 font-mono text-[10px] text-muted">{nodesLabel(b)}</p>
+              )}
             </li>
           ))}
         </ul>
@@ -70,9 +73,9 @@ function LevelCard({ p }: { p: Progress }) {
         <p className="font-mono text-3xl text-amber">
           {p.xp_total.toLocaleString()} <span className="text-base text-muted">XP</span>
         </p>
-        <p className="mt-2 text-xs text-down">
-          Level system offline: finish TODO(me) #1 <code className="font-mono">level_for_xp</code>.
-        </p>
+        <div className="mt-3">
+          <Locked task={TODOS['#1']} />
+        </div>
       </Panel>
     )
   }
@@ -106,10 +109,17 @@ function BossCard({ p }: { p: Progress }) {
     <Panel title="NEXT BOSS" right={<span className="font-mono text-[10px] text-muted">M5</span>}>
       {boss ? (
         <>
-          <p className="font-mono text-lg font-semibold text-down">{boss.title}</p>
+          <p className="font-mono text-lg font-semibold text-violet">{boss.title}</p>
           <p className="mt-1 text-xs text-muted">{boss.description}</p>
           <p className="mt-3 font-mono text-[11px] text-muted">
-            End of {boss.branch_title} · {p.passed_exercises}/{p.playable_exercises} tickets closed
+            End of {boss.branch_title}
+            {boss.stages > 1 && ` · boss ${boss.stage} of ${boss.stages}`}
+          </p>
+          <div className="mt-2">
+            <Bar value={ratio(boss)} className="bg-violet" />
+          </div>
+          <p className="mt-1.5 font-mono text-[11px] text-muted">
+            {exercisesLabel(boss)} · {nodesLabel(boss)}
           </p>
         </>
       ) : (

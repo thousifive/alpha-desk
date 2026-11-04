@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { fetchHiddenTests } from '../../api/hooks'
 import type { Exercise } from '../../api/types'
+import { Locked } from '../../components/Locked'
 import { loadDraft, saveDraft } from '../../lib/drafts'
 import { useHotkeys } from '../../lib/keyboard'
 import { getPyodide, type RunPhase } from '../../lib/pyodide/client'
@@ -30,7 +31,7 @@ export default function PythonWorkbench({ ex }: { ex: Exercise }) {
   const [busy, setBusy] = useState<Busy>(null)
   const [tab, setTab] = useState<Tab>('results')
   const hidden = useRef<string | null>(null) // fetched once per mount, at first Submit
-  const { send, out, error, pending, overlay } = useSubmission(ex)
+  const { send, out, error, locked, pending, overlay } = useSubmission(ex)
 
   useEffect(() => {
     const t = setTimeout(() => saveDraft(ex.slug, code), 400)
@@ -144,6 +145,7 @@ export default function PythonWorkbench({ ex }: { ex: Exercise }) {
           </span>
         )}
         {error && <span className="font-mono text-xs text-down">{error}</span>}
+        {locked && <Locked task={locked} compact />}
       </div>
       <div className="flex min-h-0 flex-col">
         {out && (

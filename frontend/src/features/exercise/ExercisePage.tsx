@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router'
 import { ApiError } from '../../api/client'
 import { useExercise } from '../../api/hooks'
 import type { Exercise } from '../../api/types'
+import { Locked } from '../../components/Locked'
 import { loadDraft, saveDraft } from '../../lib/drafts'
 import { runQuery, type QueryResult } from '../../lib/duckdb/db'
 import { useDuckDB } from '../../lib/duckdb/useDuckDB'
@@ -115,7 +116,7 @@ function SqlWorkbench({ ex }: { ex: Exercise }) {
   const [result, setResult] = useState<QueryResult | null>(null)
   const [queryError, setQueryError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
-  const { send, out, error, pending, overlay } = useSubmission(ex)
+  const { send, out, error, locked, pending, overlay } = useSubmission(ex)
   const ready = db.status === 'ready'
 
   useEffect(() => {
@@ -181,6 +182,7 @@ function SqlWorkbench({ ex }: { ex: Exercise }) {
         </div>
         {!ready && <span className="font-mono text-xs text-muted">warming up DuckDB…</span>}
         {error && <span className="font-mono text-xs text-down">{error}</span>}
+        {locked && <Locked task={locked} compact />}
       </div>
       <div className="flex min-h-0 flex-col">
         {out && (
@@ -204,7 +206,7 @@ function SqlWorkbench({ ex }: { ex: Exercise }) {
 
 function QuizWorkbench({ ex }: { ex: Exercise }) {
   const [choice, setChoice] = useState<number | null>(null)
-  const { send, out, error, pending, overlay } = useSubmission(ex)
+  const { send, out, error, locked, pending, overlay } = useSubmission(ex)
   const answered = out !== null
 
   const submitNow = useCallback(() => {
@@ -238,6 +240,11 @@ function QuizWorkbench({ ex }: { ex: Exercise }) {
         </span>
       </div>
       {error && <p className="mt-3 font-mono text-xs text-down">{error}</p>}
+      {locked && (
+        <div className="mt-3">
+          <Locked task={locked} />
+        </div>
+      )}
       {out && (
         <div className="mt-4">
           <SubmitFeedback out={out} nextSlug={ex.next_slug} branchId={ex.branch_id} />

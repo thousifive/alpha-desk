@@ -6,12 +6,13 @@ import type { AttemptIn, AttemptOut, Exercise, Level } from '../../api/types'
 import { LevelUpModal } from '../../components/LevelUpModal'
 import { XpPop } from '../../components/XpPop'
 import type { QueryResult } from '../../lib/duckdb/db'
+import { todoFromMessage } from '../../lib/todos'
 
 /** Everything one attempt paid: exercise, node mastery, quests, and streak milestone. */
 export const totalGain = (o: AttemptOut) =>
   o.xp_awarded + o.node_bonus_xp + o.quest_xp + o.streak_xp
 
-/** Shared submit plumbing: XP pop, level-up detection, error text for 501 TODO(me)s. */
+/** Shared submit plumbing: XP pop, level-up detection, locked state for 501 TODO(me)s. */
 export function useSubmission(ex: Exercise) {
   const submit = useSubmitAttempt(ex.slug)
   const [out, setOut] = useState<AttemptOut | null>(null)
@@ -42,11 +43,15 @@ export function useSubmission(ex: Exercise) {
     [submit, startedAt],
   )
 
-  const error =
-    submit.error instanceof ApiError
-      ? submit.error.status === 501
-        ? `${submit.error.message}. Finish it in the backend to enable submitting.`
-        : submit.error.message
+  // A 501 names the TODO(me) that blocks grading: an expected locked state, not an error.
+  const locked =
+    submit.error instanceof ApiError && submit.error.status === 501
+      ? todoFromMessage(submit.error.message)
+      : null
+  const error = locked
+    ? null
+    : submit.error instanceof ApiError
+      ? submit.error.message
       : submit.error
         ? String(submit.error)
         : null
@@ -58,5 +63,5 @@ export function useSubmission(ex: Exercise) {
       <LevelUpModal level={levelUp} onClose={() => setLevelUp(null)} />
     </>
   )
-  return { send, out, error, pending: submit.isPending, overlay }
+  return { send, out, error, locked, pending: submit.isPending, overlay }
 }

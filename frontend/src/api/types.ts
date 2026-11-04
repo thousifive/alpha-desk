@@ -17,7 +17,19 @@ export interface Boss {
   branch_title: string
   title: string
   description: string
+  stage: number // 1-based among the branch's bosses
+  stages: number
 }
+
+/** Playable exercises only; nodes = every node in the branch. Same numbers on every screen. */
+export interface BranchCounts {
+  n_nodes: number
+  n_mastered: number
+  n_exercises: number
+  n_passed: number
+}
+
+export type NextBoss = Boss & BranchCounts
 
 export interface Streak {
   current: number
@@ -58,21 +70,17 @@ export interface Progress {
   passed_exercises: number
   playable_exercises: number
   mastered_nodes: number
-  next_boss: Boss | null
+  next_boss: NextBoss | null
 }
 
-export interface BranchSummary {
+export interface BranchSummary extends BranchCounts {
   id: string
   title: string
   description: string
   order: number
   playable: boolean
   playable_from: string
-  boss: Boss | null
-  n_nodes: number
-  n_mastered: number
-  n_exercises: number
-  n_passed: number
+  bosses: Boss[]
 }
 
 export interface ExerciseSummary {
@@ -82,6 +90,7 @@ export interface ExerciseSummary {
   persona: Persona
   difficulty: number
   passed: boolean
+  playable: boolean
 }
 
 export interface SkillNode {
@@ -92,6 +101,8 @@ export interface SkillNode {
   prerequisites: string[]
   xp_reward: number
   state: NodeState
+  n_exercises: number // playable only, same rule as BranchCounts
+  n_passed: number
   exercises: ExerciseSummary[]
 }
 
