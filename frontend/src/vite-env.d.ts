@@ -1,7 +1,7 @@
 /// <reference types="vite-plugin-pwa/react" />
 
 interface ImportMetaEnv {
-  /** Backend origin for production builds, e.g. https://api.example.com. Unset in dev. */
+  /** Backend origin for production builds: the tailnet URL, e.g. https://alpha-desk.<tailnet>.ts.net. Unset in dev. */
   readonly VITE_API_URL?: string
 }
 

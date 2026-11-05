@@ -1,12 +1,13 @@
 # Deploying Alpha Desk
 
 Zero hosting cost: the frontend is a PWA on Netlify's free plan, and the backend runs on your
-own machine (Docker) whenever it's on. Remote access from phones goes over Tailscale (set up
-after M2.5; until then the backend is reachable from this machine only). Progress lives on each device and
-syncs when the backend is reachable, so the backend being off is a normal state.
+own machine (Docker) whenever it's on, reachable **only from your own devices** over Tailscale
+at `https://alpha-desk.<tailnet>.ts.net`. Progress lives on each device and syncs when the
+backend is reachable, so the backend being off is a normal state.
 
-- Frontend: this document, "Netlify".
-- Backend: "Backend (self-hosted)".
+- Frontend: "Netlify".
+- Backend: "Backend (self-hosted)" and "Private access: Tailscale".
+- One-time Tailscale setup and troubleshooting: `README.md`. Moving machines: `MIGRATION.md`.
 
 ## Netlify (frontend)
 
@@ -30,8 +31,9 @@ At ~15 credits per deploy, merging to `main` once per milestone stays far under 
 1. **Create the site.** Netlify → Add new site → Import from Git → pick the repo. Leave build
    settings empty: `netlify.toml` provides them (base `frontend`, `pnpm build`, publish `dist`).
 2. **Set the API origin.** Site configuration → Environment variables → add
-   `VITE_API_URL` = your backend's public origin (Tailscale, coming), e.g. `https://api.example.com` (no trailing slash, no
-   `/api`). The build fails on purpose if it's missing.
+   `VITE_API_URL` = the tailnet URL `make serve` prints, e.g.
+   `https://alpha-desk.tailf48ab9.ts.net` (no trailing slash, no `/api`). The build fails on
+   purpose if it's missing. It's not a secret: the name is only reachable from your tailnet.
 3. **Production branch only.** Site configuration → Build & deploy → Continuous deployment →
    Branches and deploy contexts:
    - Production branch: `main`
@@ -51,7 +53,7 @@ To check a build locally first, with the same settings Netlify uses:
 
 ```sh
 cd frontend
-VITE_API_URL=https://api.example.com pnpm build
+VITE_API_URL=https://alpha-desk.<tailnet>.ts.net pnpm build
 pnpm preview   # serves dist/; the service worker is active here, unlike in pnpm dev
 ```
 
@@ -76,14 +78,17 @@ open also checks for updates hourly.
 ## Backend (self-hosted)
 
 One container (`docker-compose.yml`, service `api`): FastAPI + SQLite, port bound to
-`127.0.0.1:8000` only, so nothing on the LAN or internet can reach it until a tunnel is added.
+`127.0.0.1:8000` only, so nothing on the LAN or internet reaches it directly. Devices reach it
+through `tailscale serve` (below).
 
 ### Run it
 
 ```sh
 cp backend/.env.example backend/.env   # then fill in APP_PASSWORD_HASH, SESSION_SECRET, CORS_ORIGINS
-make serve    # build, start, wait for /health, follow logs. Ctrl+C = stop + backup
-make backup   # snapshot any time (works whether the container runs or not)
+make serve          # check Tailscale, build, start, tailscale serve, check /health via ts.net
+                    # Ctrl+C = serve off + stop + backup
+make serve-status   # backend, Tailscale, serve, Funnel (must be off), URL, health via tailnet
+make backup         # snapshot any time (works whether the container runs or not)
 make logs / make stop
 ```
 
@@ -154,30 +159,57 @@ Devices keep their own full log and re-upload anything the restored DB lacks on 
   iPhone and iPad. Instead `/api/auth/login` returns a signed 30-day token the app keeps in
   IndexedDB and sends as `Authorization: Bearer`. The app swaps it for a fresh one at most
   daily, so a device in use never expires. Same-origin dev still gets the cookie too.
-- **CORS** allows only `CORS_ORIGINS` (comma-separated, exact origins), no credentials.
-- **Rate limiting:** 10 failed logins per IP per 15 min, then 429 with `Retry-After`. AI
+- **Private network.** Only devices logged in to your tailnet can resolve or reach the API.
+  The password is a second layer on top of that.
+- **CORS** allows only `CORS_ORIGINS` (comma-separated, exact origins), no credentials. It also
+  answers Chrome's Private Network Access preflight with
+  `Access-Control-Allow-Private-Network: true` for those origins: the Netlify page is public
+  and the tailnet address (`100.x`) is private, which desktop Chrome otherwise blocks.
+- **Rate limiting:** 10 failed logins per client per 15 min, then 429 with `Retry-After`. AI
   endpoints arrive in M4 and will use the same limiter (`backend/app/ratelimit.py`).
-  In-memory, which is right for one process; restarts reset it.
+  In-memory, which is right for one process; restarts reset it. Behind `tailscale serve` +
+  Docker every request arrives from the Docker gateway, so by default all your devices share
+  one limit. That's fine for one user on a private network; set `FORWARDED_ALLOW_IPS` to the
+  gateway if you want per-device limits.
 - **Anthropic key** only in `backend/.env`. The image never contains it (`.dockerignore` is an
   allowlist); compose passes it in at runtime.
 
-### Remote access: Tailscale (coming)
+### Private access: Tailscale
 
-Not set up yet. Until then the API is reachable only at `http://127.0.0.1:8000` on the machine
-running it. When it lands: set Netlify's `VITE_API_URL` and the backend's `CORS_ORIGINS`, and
-`FORWARDED_ALLOW_IPS` to the proxy address so rate limits key on real client IPs.
+```
+iPhone (Tailscale on) ──HTTPS──▶ alpha-desk.<tailnet>.ts.net ──tailscale serve──▶ 127.0.0.1:8000
+```
+
+- **`tailscale serve`, never `tailscale funnel`.** Serve shares a local port with your tailnet
+  only; Funnel would publish it on the internet. The scripts refuse to run if Funnel is on for
+  the machine.
+- **HTTPS** comes from Tailscale: a Let's Encrypt certificate for the `ts.net` name, issued
+  and renewed automatically by `tailscaled`. It needs "HTTPS Certificates" enabled once in the
+  admin console. Note that certificate names are public in Certificate Transparency logs, so
+  the machine and tailnet names are visible, though not reachable.
+- **Stable URL:** the Tailscale machine name `alpha-desk` (set in the admin console), not the
+  OS hostname. Moving to another machine moves the name (`MIGRATION.md`).
+- **On the Mac (`make serve`):** serve is turned on at start and **off on Ctrl+C**. Left on,
+  the URL would keep proxying to port 8000, and a later `make dev` on the same port would be
+  exposed to your tailnet with the dev database. Devices see "offline" either way.
+- **On the Linux server (systemd):** serve stays on; tailscaled keeps it across reboots, and
+  the service re-applies it on start (`scripts/tailscale-serve.sh on`, idempotent).
+- **Helpers:** `scripts/tailscale.sh` finds the CLI (`PATH`, or inside the macOS app) and
+  holds the checks; on Linux the scripts need `sudo tailscale set --operator=$USER` once.
 
 ### Phase 2: always-on Linux laptop
 
 ```sh
 sudo usermod -aG docker "$USER"   # once, then log out and in
+curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up
 git clone … && cd alpha-desk && cp backend/.env.example backend/.env   # fill it in
-scripts/install-systemd.sh
+scripts/install-systemd.sh        # also grants your user `tailscale serve` (operator)
 ```
 
 Installs three units from `deploy/systemd/`:
 
-- `alpha-desk.service`: `docker compose up` at boot; stopping it writes a backup.
+- `alpha-desk.service`: `docker compose up` + `tailscale serve` at boot; stopping it writes a
+  backup (and leaves serve on).
 - `alpha-desk-backup.timer` + `.service`: daily backup at 03:30 (runs at boot if missed).
 
 Check with `systemctl status alpha-desk` and `journalctl -u alpha-desk-backup`. To update:

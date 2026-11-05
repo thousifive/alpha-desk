@@ -119,16 +119,33 @@ An admin "generate exercise with Claude" tool writes draft content into `/conten
 
 ## 7. Deployment and sync
 
-**Shape.** The frontend is a PWA on Netlify's free plan. The backend is *not* a 24/7 server: it
-runs on the player's own machine (`make serve` on the Mac during study sessions; later an
-always-on Linux laptop under systemd) and is reachable from devices over Tailscale. "Server
-off" is a normal state, not an error. Details: `docs/DEPLOY.md`, `docs/MIGRATION.md`.
+**Shape.** The frontend is a PWA on Netlify's free plan (public). The backend is *not* a 24/7
+server: it runs on the player's own machine (`make serve` on the Mac during study sessions;
+later an always-on Linux laptop under systemd). "Server off" is a normal state, not an error.
+Details: `docs/DEPLOY.md`, `docs/MIGRATION.md`.
 
 ```
-iPhone / iPad / desktop (PWA from Netlify)          player's machine (Docker Compose)
-  IndexedDB event log ── sync when reachable ──▶  FastAPI ── SQLite (WAL) ./data/alpha.db
-  Pyodide rules kernel                    (Tailscale)        backups ./backups (keep 14)
+  Netlify (public)                       player's tailnet (private)
+  ┌──────────────────┐   app shell   ┌────────────────────────────────────────────────────┐
+  │ PWA: HTML/JS/CSS │──────────────▶│ iPhone / iPad / desktop (Tailscale app on)          │
+  └──────────────────┘               │   IndexedDB event log · Pyodide rules kernel        │
+                                     │        │ HTTPS, bearer token, only when reachable   │
+                                     │        ▼                                            │
+                                     │ https://alpha-desk.<tailnet>.ts.net  (tailscale     │
+                                     │        │                              serve, no     │
+                                     │        ▼                              Funnel)       │
+                                     │ 127.0.0.1:8000  FastAPI (Docker) ── SQLite (WAL)    │
+                                     │                 ./data/alpha.db · ./backups (14)    │
+                                     └────────────────────────────────────────────────────┘
 ```
+
+**Private API.** The API is reachable only from the player's own devices on their Tailscale
+network: `tailscale serve` terminates HTTPS (a Let's Encrypt cert for the `ts.net` name) and
+proxies to the backend on loopback. Tailscale Funnel is never used, and the backend port is
+never published beyond `127.0.0.1`. From any device not on the tailnet the name doesn't
+resolve. The Tailscale machine name (`alpha-desk`) is the stable part of the URL; moving the
+backend to another machine moves the name, not the URL. When Tailscale is off on a device, the
+app behaves exactly as if the server were off.
 
 **Local-first model.**
 - Each device stores progress as an append-only **event log** in IndexedDB (Dexie): `attempt`,
@@ -161,7 +178,11 @@ have synced with (cursors would skip new events; see `docs/MIGRATION.md`).
 
 **Auth.** One password. Login returns a signed 30-day bearer token stored in IndexedDB and
 refreshed daily, because Safari blocks the cross-site cookies a Netlify-to-backend session
-would need. CORS allows only the configured origins. Failed logins are rate-limited.
+would need (`*.netlify.app` and `*.ts.net` are different sites). CORS allows only the
+configured origins, without credentials, and answers Chrome's Private Network Access
+preflight (`Access-Control-Allow-Private-Network: true`) because the tailnet address is
+private. Failed logins are rate-limited. The password stays as a second layer on top of
+tailnet membership.
 
 ## 8. Data model (starting point)
 User, SkillNode (branch, prerequisites, xp_reward), Exercise (type, node_id, prompt,
@@ -200,7 +221,7 @@ source `event_id`.
 - Tests cover XP/level logic, SM-2 scheduling, quest generation, and exercise grading.
 - Offline: with the backend off all day, quests, SQL exercises and flashcards work on a phone,
   and XP and streaks update immediately. No duplicated events or XP after sync.
-- Zero hosting cost; the backend port is never exposed except through the private tunnel.
+- Zero hosting cost. The API is never public: tailnet only via `tailscale serve`, no Funnel.
 
 ## 11. Milestones
 - **M1:** skeleton + auth + dashboard + the SQL branch fully playable in DuckDB-WASM, with XP and levels
