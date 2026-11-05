@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Linux only: install and start the systemd units for this checkout and user.
 # Your user must be in the `docker` group (sudo usermod -aG docker "$USER", then log in again).
+# Tailscale must be installed and logged in (sudo tailscale up), with HTTPS certificates on.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ "$(uname -s)" = Linux ] || { echo "systemd units are for the Linux laptop" >&2; exit 1; }
+
+command -v tailscale >/dev/null || { echo "install Tailscale first: curl -fsSL https://tailscale.com/install.sh | sh" >&2; exit 1; }
+# Lets the service (running as you, not root) change `tailscale serve` settings.
+sudo tailscale set --operator="$(id -un)"
 
 repo="$(pwd)"
 for unit in alpha-desk.service alpha-desk-backup.service alpha-desk-backup.timer; do

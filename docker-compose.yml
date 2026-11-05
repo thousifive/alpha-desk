@@ -28,8 +28,8 @@ services:
       - ./content:/content:ro
       - ./backups:/backups
     ports:
-      # Loopback only: nothing on your LAN or the internet reaches it directly. Remote access
-      # goes through Tailscale later (docs/DEPLOY.md).
+      # Loopback only: nothing on your LAN or the internet reaches it directly. Devices reach
+      # it through `tailscale serve` (HTTPS, tailnet only; never Funnel). See docs/DEPLOY.md.
       - "127.0.0.1:8000:8000"
     healthcheck:
       test:

@@ -10,8 +10,9 @@ alembic upgrade head
 
 # One worker on purpose: the login rate limiter and the derived-tables lock live in process
 # memory, and SQLite has a single writer anyway.
-# --proxy-headers: when a proxy (Tailscale, later) sits in front, take the client IP from
-# X-Forwarded-For, but only from the addresses in FORWARDED_ALLOW_IPS.
+# --proxy-headers: take the client IP from X-Forwarded-For, but only when the request comes
+# from an address in FORWARDED_ALLOW_IPS (the proxy in front: `tailscale serve`, seen from
+# inside Docker as the Docker gateway).
 exec uvicorn app.main:app \
   --host 0.0.0.0 --port 8000 --workers 1 \
   --proxy-headers --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-127.0.0.1}"

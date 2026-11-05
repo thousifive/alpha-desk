@@ -3,8 +3,8 @@
 [Unit]
 Description=Alpha Desk API (docker compose)
 Requires=docker.service
-After=docker.service network-online.target
-Wants=network-online.target
+After=docker.service tailscaled.service network-online.target
+Wants=tailscaled.service network-online.target
 
 [Service]
 Type=oneshot
@@ -15,6 +15,9 @@ Environment=ALPHA_HOST=%H
 Environment=ALPHA_UID=@UID@
 Environment=ALPHA_GID=@GID@
 ExecStart=/usr/bin/docker compose up -d --build --wait
+# Private HTTPS on the tailnet (never Funnel). Idempotent; the setting also persists in
+# tailscaled across reboots. Left on at stop: a stopped backend just reads as "offline".
+ExecStartPost=@REPO@/scripts/tailscale-serve.sh on
 ExecStop=/usr/bin/docker compose stop
 # Same as `make serve` on the Mac: every stop leaves a fresh backup.
 ExecStopPost=@REPO@/scripts/backup.sh

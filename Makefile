@@ -1,4 +1,4 @@
-.PHONY: install dev dev-backend dev-frontend test test-backend test-frontend lint fmt seed sync-content serve backup stop logs
+.PHONY: install dev dev-backend dev-frontend test test-backend test-frontend lint fmt seed sync-content serve serve-status backup stop logs
 
 install:
 	cd backend && uv sync
@@ -39,9 +39,14 @@ sync-content:
 	cd backend && uv run alpha-desk sync-content
 
 # ---- self-hosted backend (Docker) -------------------------------------------------------
-# Session server on this machine; Ctrl+C stops it and writes a backup. See docs/DEPLOY.md.
+# Session server, private to your tailnet: Docker on 127.0.0.1:8000 + `tailscale serve` (HTTPS).
+# Ctrl+C turns serve off, stops the backend, writes a backup. Never Funnel. See docs/DEPLOY.md.
 serve:
 	scripts/serve.sh
+
+# Backend, Tailscale, serve and Funnel state, the URL, and /health through the tailnet.
+serve-status:
+	@scripts/serve-status.sh
 
 # Snapshot data/alpha.db into backups/ (SQLite backup API), keeping the newest 14.
 backup:
