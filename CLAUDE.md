@@ -38,9 +38,13 @@ and data side, explain non-obvious Python and data-engineering decisions in shor
 - Fictional data only: the fund is "Meridian Capital"; never use real fund or client names.
 
 ## Commands
+- Both: `make dev` (backend on 0.0.0.0:8000 + Vite `--host` on :5173; prints the LAN URL for phones)
 - Frontend dev: `make dev-frontend` (Vite on :5173, proxies `/api` to `API_URL` or :8000)
 - Backend dev: `make dev-backend` (runs Alembic migrations, then uvicorn on :8000)
-- Both: `make dev`
+- Self-hosted backend: `make serve` (Docker Compose, 127.0.0.1:8000, DB in `./data/alpha.db`;
+  Ctrl+C stops and backs up), `make stop`, `make logs`. Uses port 8000 like `make dev`: one at a time.
+- Backup: `make backup` (SQLite backup API into `./backups`)
 - Run all tests: `make test` (pytest + vitest; `TODO(me)` tests are strict xfail)
 - Lint/format: `make lint` / `make fmt`
 - Content: `make sync-content` after editing `/content` YAML; `make seed` regenerates the dataset
+- Deploy and ops docs: `docs/DEPLOY.md` (Netlify, Docker backend, backups), `docs/MIGRATION.md`
