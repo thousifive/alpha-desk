@@ -1,5 +1,6 @@
 import { getDB, type StoredEvent } from './db'
 import type { LogEvent } from './events'
+import { uuid } from '../uuid'
 
 // The event log API. There is deliberately no delete and no update beyond the `synced` flag:
 // events are facts, and an unsynced event may be the only copy of that progress anywhere.
@@ -30,7 +31,7 @@ export async function getDeviceId(): Promise<string> {
   return db.transaction('rw', db.meta, async () => {
     const row = await db.meta.get('device_id')
     if (typeof row?.value === 'string') return row.value
-    const id = crypto.randomUUID()
+    const id = uuid()
     await db.meta.put({ key: 'device_id', value: id, updated_at: now() })
     return id
   })
