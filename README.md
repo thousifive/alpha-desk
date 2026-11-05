@@ -107,11 +107,31 @@ SESSION_SECRET=...
 ### Commands
 | | |
 |---|---|
-| `make dev` | backend + frontend with reload |
+| `make dev` | backend + frontend with reload, on the LAN (prints the phone URL) |
 | `make test` | pytest + vitest |
 | `make lint` / `make fmt` | ruff, oxlint, tsc, prettier |
 | `make sync-content` | validate and load `/content` YAML into the DB |
 | `make seed` | regenerate the Parquet dataset |
+
+### Testing on a phone
+`make dev` binds both servers to all interfaces and prints a URL like
+`http://192.168.1.8:5173`. Open it on a phone or iPad on the same Wi-Fi. The phone talks only
+to Vite, which proxies `/api` to the backend, so no CORS setup is needed.
+
+Limits of the LAN URL:
+- **It's plain HTTP**, so the browser treats it as an insecure context. The app runs, but it
+  can't be installed as a PWA, there is no service worker (no offline mode), and Web Locks
+  aren't available (two tabs could sync at the same time; harmless, uploads are idempotent).
+- **Slow on iPhone and iPad.** Safari runs WebAssembly far slower on insecure origins:
+  Pyodide boots in ~45 s instead of ~2 s (measured in WebKit; Chrome isn't affected). Every
+  page uses the Pyodide rules engine, so each full reload pays that again. Fine for checking
+  layout; for real use on iOS, use HTTPS (the Tailscale URL, once set up).
+- **The Netlify site can't use a LAN backend.** An HTTPS page can't call a plain-HTTP API
+  (mixed content: the browser blocks it), so `https://….netlify.app` talks to the backend over
+  the HTTPS remote-access URL (Tailscale, see `docs/DEPLOY.md`), never to `http://192.168…`.
+- macOS may ask to allow incoming connections for `python` and `node` the first time. Allow
+  them, or the phone just times out.
+- `make dev` and `make serve` both use port 8000: run one at a time.
 
 ### Your TODO(me) tasks
 Search for `TODO(me)` in `backend/app`. Each has strict-xfail tests: when you finish

@@ -5,14 +5,16 @@ install:
 	cd frontend && pnpm install
 
 # Runs both servers; Ctrl+C stops both.
+# Both servers listen on the LAN so a phone/iPad on the same Wi-Fi can test (URL printed).
 dev:
+	@scripts/lan-url.sh 5173
 	$(MAKE) -j2 dev-backend dev-frontend
 
 dev-backend:
-	cd backend && uv run alembic upgrade head && uv run uvicorn app.main:app --reload --port 8000
+	cd backend && uv run alembic upgrade head && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 dev-frontend:
-	cd frontend && pnpm dev
+	cd frontend && pnpm dev --host
 
 test: test-backend test-frontend
 
