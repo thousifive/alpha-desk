@@ -31,6 +31,8 @@ and data side, explain non-obvious Python and data-engineering decisions in shor
 ## Security
 - The Anthropic API key lives only in `backend/.env` (gitignored). Never put it in frontend code or commit it.
 - Any backend code execution must be sandboxed: subprocess, time and memory limits, no network.
+- The API is never exposed publicly: private to my tailnet via `tailscale serve`, port bound to
+  `127.0.0.1`. Never use Tailscale Funnel, and never publish the port on other interfaces.
 
 ## Conventions
 - TypeScript strict mode. No `any` without a comment explaining why.
@@ -41,8 +43,10 @@ and data side, explain non-obvious Python and data-engineering decisions in shor
 - Both: `make dev` (backend on 0.0.0.0:8000 + Vite `--host` on :5173; prints the LAN URL for phones)
 - Frontend dev: `make dev-frontend` (Vite on :5173, proxies `/api` to `API_URL` or :8000)
 - Backend dev: `make dev-backend` (runs Alembic migrations, then uvicorn on :8000)
-- Self-hosted backend: `make serve` (Docker Compose, 127.0.0.1:8000, DB in `./data/alpha.db`;
-  Ctrl+C stops and backs up), `make stop`, `make logs`. Uses port 8000 like `make dev`: one at a time.
+- Self-hosted backend: `make serve` (checks Tailscale, Docker Compose on 127.0.0.1:8000, DB in
+  `./data/alpha.db`, then `tailscale serve` → `https://alpha-desk.<tailnet>.ts.net`; Ctrl+C turns
+  serve off, stops, backs up), `make stop`, `make logs`. Uses port 8000 like `make dev`: one at a time.
+- Status: `make serve-status` (backend, Tailscale, serve, Funnel, URL, health via the tailnet)
 - Backup: `make backup` (SQLite backup API into `./backups`)
 - Run all tests: `make test` (pytest + vitest; `TODO(me)` tests are strict xfail)
 - Lint/format: `make lint` / `make fmt`
