@@ -47,15 +47,15 @@ queue their events.
 ## 3. Copy the data
 
 Copy the **backup**, not the live file: a backup is a single self-contained file, while the
-live database may still have a `-wal` sidecar.
+live database may still have a `-wal` sidecar. The dataset (`data/meridian/`) is in git, so
+the clone already has it.
 
 ```sh
 # on the Mac, from the repo root
 B=$(ls backups/alpha-*.db | tail -1)
-ssh laptop 'mkdir -p ~/alpha-desk/data ~/alpha-desk/backups'
+ssh laptop 'mkdir -p ~/alpha-desk/backups'
 scp "$B"             laptop:~/alpha-desk/data/alpha.db
 scp backend/.env     laptop:~/alpha-desk/backend/.env
-scp -r data/meridian laptop:~/alpha-desk/data/       # the dataset, so devices don't redownload it
 ```
 
 `backend/.env` holds the password hash, session secret and (from M4) the Anthropic key. Copy

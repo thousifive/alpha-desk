@@ -98,12 +98,12 @@ sleep while plugged in. Closing the lid still sleeps it unless an external displ
 | Host path | In container | What |
 |---|---|---|
 | `data/alpha.db` | `/data/alpha.db` | the database (plus `-wal`/`-shm` while open) |
-| `data/meridian/` | `/data/meridian` | generated dataset (`make seed`) |
+| `data/meridian/` | `/data/meridian` | fictional dataset (committed to git) |
 | `content/` | `/content` (read-only) | curriculum YAML |
 | `backups/` | `/backups` | snapshots |
 
 The container runs as your UID/GID (`scripts/env.sh`), so these files stay owned by you on
-Linux. All gitignored.
+Linux. Everything except the dataset is gitignored.
 
 **Why WAL:** readers (sync pulls, `/health`) don't block the writer, and a crash can't
 corrupt the file. `synchronous=NORMAL` is safe in WAL mode and much faster. Set per connection
@@ -172,7 +172,6 @@ running it. When it lands: set Netlify's `VITE_API_URL` and the backend's `CORS_
 ```sh
 sudo usermod -aG docker "$USER"   # once, then log out and in
 git clone … && cd alpha-desk && cp backend/.env.example backend/.env   # fill it in
-make seed
 scripts/install-systemd.sh
 ```
 
