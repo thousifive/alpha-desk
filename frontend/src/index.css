@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 
-/* Trading-terminal palette. Dark only by design (spec §8). */
+/* Trading-terminal palette. Dark only by design (spec §9). */
 @theme {
   --color-bg: #07090c;
   --color-panel: #0e1318;

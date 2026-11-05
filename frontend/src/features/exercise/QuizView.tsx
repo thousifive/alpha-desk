@@ -9,7 +9,7 @@ interface Props {
   locked: boolean
 }
 
-/** Keys 1–n select a choice; works well on mobile (spec §8: quizzes must). */
+/** Keys 1–n select a choice; works well on mobile (spec §9: quizzes must). */
 export function QuizView({ choices, selected, onSelect, locked }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
