@@ -119,7 +119,8 @@ SESSION_SECRET=...
 | | |
 |---|---|
 | `make dev` | backend + frontend with reload, on the LAN (prints the phone URL) |
-| `make serve` | the backend in Docker for your devices; Ctrl+C stops it and backs up |
+| `make serve` | the backend in Docker, served privately on your tailnet; Ctrl+C stops it and backs up |
+| `make serve-status` | is the backend up, is Tailscale serving it, is Funnel off, the URL |
 | `make backup` | snapshot the server database into `backups/` |
 | `make stop` / `make logs` | stop the Docker backend / follow its logs |
 | `make test` | pytest + vitest |
@@ -139,34 +140,65 @@ Limits of the LAN URL:
 - **Slow on iPhone and iPad.** Safari runs WebAssembly far slower on insecure origins:
   Pyodide boots in ~45 s instead of ~2 s (measured in WebKit; Chrome isn't affected). Every
   page uses the Pyodide rules engine, so each full reload pays that again. Fine for checking
-  layout; for real use on iOS, use HTTPS (the Tailscale URL, once set up).
+  layout; for real use on iOS, use the Netlify app with `make serve` (HTTPS end to end).
 - **The Netlify site can't use a LAN backend.** An HTTPS page can't call a plain-HTTP API
   (mixed content: the browser blocks it), so `https://….netlify.app` talks to the backend over
-  the HTTPS remote-access URL (Tailscale, see `docs/DEPLOY.md`), never to `http://192.168…`.
+  its HTTPS tailnet URL (`https://alpha-desk.<tailnet>.ts.net`), never to `http://192.168…`.
 - macOS may ask to allow incoming connections for `python` and `node` the first time. Allow
   them, or the phone just times out.
 - `make dev` and `make serve` both use port 8000: run one at a time.
 
 ## Guides
 
+The API is **private**: only your own devices, logged in to your Tailscale network, can reach
+it (`https://alpha-desk.<tailnet>.ts.net`). The app itself is public on Netlify and works
+offline; it syncs whenever it can reach the API. Never use Tailscale Funnel for this.
+
+### One-time Tailscale setup
+1. **Account.** Sign up at [tailscale.com](https://tailscale.com) (the free Personal plan is
+   enough). Your tailnet gets a name like `tailf48ab9.ts.net`.
+2. **Install on the Mac.** From [tailscale.com/download](https://tailscale.com/download) or the
+   Mac App Store. Open it and log in. The scripts find its command-line tool inside the app,
+   so nothing else is needed.
+3. **Name the Mac `alpha-desk`.** Admin console ([login.tailscale.com](https://login.tailscale.com))
+   → **Machines** → your Mac → **⋯** → **Edit machine name…** → untick "Auto-generate from OS
+   hostname" → `alpha-desk`. This name is the stable part of the API URL; when the backend
+   moves to another machine, the name moves with it (`docs/MIGRATION.md`).
+4. **MagicDNS and HTTPS certificates.** Admin console → **DNS**:
+   - **MagicDNS**: enabled (it is by default on new tailnets).
+   - **HTTPS Certificates**: **Enable HTTPS**. `tailscale serve` needs this to get a real
+     certificate for `alpha-desk.<tailnet>.ts.net`. Certificate names appear in public
+     Certificate Transparency logs: people can see the name, not reach it.
+5. **iPhone and iPad.** Install **Tailscale** from the App Store and log in to the same
+   account. Allow the VPN configuration when asked. Then in the Tailscale app → **Settings** →
+   **VPN On Demand**: turn it on with the rules set to connect on both Wi-Fi and cellular, so
+   it reconnects by itself after a restart or a network change. (Menu labels can vary a little
+   between app versions.)
+6. **Check:** on the Mac, `make serve-status` shows `Tailscale Running`, no "certificates OFF"
+   line, and `Funnel off`.
+
 ### Run the server for your devices (`make serve`)
 Your phone and iPad keep working without it; this is what they sync with.
 
 1. Do steps 2–4 of the setup above (`backend/.env` with password hash and session secret).
 2. Add the Netlify site's origin: `CORS_ORIGINS=https://<your-site>.netlify.app` in
-   `backend/.env`.
-3. Start Docker, then:
+   `backend/.env` (exact origin: no trailing slash).
+3. Start Docker. Stop `make dev` if it's running (both use port 8000). Then:
    ```bash
    make serve
    ```
-   First run builds the image (a few minutes). It waits until `/health` is OK, then shows the
-   logs. On macOS it keeps the Mac awake (`caffeinate -s`) while running.
-4. Check it: `curl localhost:8000/health` →
-   `{"status":"ok","version":"…","db":"ok","host":"<this machine>"}`.
-5. **Remote access: Tailscale (coming).** The port is bound to `127.0.0.1` only, so devices
-   can't reach it yet. Once Tailscale is set up, its HTTPS URL is what Netlify's `VITE_API_URL`
-   points at.
-6. Done for the day: **Ctrl+C**. It stops the server and writes `backups/alpha-<time>.db`.
+   It checks Tailscale (connected, HTTPS certificates on, Funnel off) before starting
+   anything, builds and starts the backend (first build takes a few minutes), runs
+   `tailscale serve`, and checks `/api/health` through the tailnet URL. Then it prints:
+   ```
+   Alpha Desk API:  https://alpha-desk.<tailnet>.ts.net
+   ```
+   That URL is your `VITE_API_URL` for Netlify. On macOS it keeps the Mac awake
+   (`caffeinate -s`, while on power) as long as it runs.
+4. Anytime, in another terminal: `make serve-status` shows the backend, Tailscale, serve,
+   Funnel, the URL and a health check through the tailnet.
+5. Done for the day: **Ctrl+C**. It turns `tailscale serve` off, stops the backend and writes
+   `backups/alpha-<time>.db`. Devices switch to "Offline" and keep working.
 
 For an always-on Linux machine, see `docs/DEPLOY.md` (systemd) and `docs/MIGRATION.md`.
 
@@ -176,11 +208,13 @@ and skips commits that don't change the app, so normal use stays far under budge
 
 1. Netlify → **Add new site → Import from Git** → pick this repo. Leave the build settings
    empty; `netlify.toml` sets them.
-2. **Site configuration → Environment variables:** add `VITE_API_URL` = your backend's HTTPS
-   origin (no trailing slash). The build fails on purpose without it.
+2. **Site configuration → Environment variables:** add `VITE_API_URL` =
+   `https://alpha-desk.<tailnet>.ts.net` (what `make serve` prints; no trailing slash, no
+   `/api`). The build fails on purpose without it. It isn't secret: only your tailnet can
+   reach it.
 3. **Build & deploy → Branches and deploy contexts:** production branch `main`, branch deploys
    **None**, deploy previews **None**. (These save credits.)
-4. Put the site's URL in the backend's `CORS_ORIGINS` and restart it.
+4. Put the site's URL in the backend's `CORS_ORIGINS` and restart `make serve`.
 5. Deploy = merge to `main` and push. Devices show "Update available · tap to reload".
 
 Details, budget table and pinned CDN assets: `docs/DEPLOY.md`.
@@ -188,11 +222,32 @@ Details, budget table and pinned CDN assets: `docs/DEPLOY.md`.
 ### Install on iPhone and iPad
 1. Open the Netlify URL in **Safari**.
 2. Tap **Share → Add to Home Screen → Add**.
-3. Open **Alpha Desk from the Home Screen** and log in there. The installed app has its own
-   storage, separate from the Safari tab, so log in and play in the installed app.
+3. Open **Alpha Desk from the Home Screen** and log in there (Tailscale connected, `make serve`
+   running). The installed app has its own storage, separate from the Safari tab, so log in
+   and play in the installed app.
 4. With the server reachable, open each kind of page once (dashboard, an SQL ticket, a Python
    ticket): that downloads Python and DuckDB (~50 MB) so they work offline afterwards.
-5. Settings → **SYNC** shows the server state, queued events and last sync.
+5. Settings → **SYNC** shows the server state, its address, queued events and last sync.
+
+### Daily routine
+- **Studying at the Mac:** `make serve`. Phone and iPad sync within a minute (Tailscale on).
+- **Anywhere else:** just open the app. Quests, SQL, quizzes and flashcards work offline;
+  XP and streaks update immediately. The pill says `Offline · …` and events queue.
+- **Next `make serve`:** everything queued uploads, and the other devices pick it up.
+- **Done:** Ctrl+C (serve off, backend stopped, backup written).
+
+### Troubleshooting
+| Symptom | Check |
+|---|---|
+| Phone says **"Offline · server not reachable (is Tailscale on?)"** | Tailscale app connected (VPN icon in the status bar)? `make serve` running on the Mac? `make serve-status` there. On the phone, open `https://alpha-desk.<tailnet>.ts.net/health` in Safari: if that fails too, it's Tailscale or the Mac, not the app. |
+| Desktop Chrome console: **blocked by CORS policy** | `CORS_ORIGINS` must match the site origin exactly (`https://…netlify.app`, no slash), then restart `make serve`. |
+| Desktop Chrome: **Private Network Access** / **local network access** error or prompt | The Netlify page is public and the tailnet address is private. The backend answers the preflight; if Chrome asks for permission to access devices on your local network, allow it for the Netlify site. Is Tailscale running on that computer? |
+| `make serve`: **HTTPS certificates are off** | Admin console → DNS → Enable HTTPS (one-time setup, step 4). |
+| Browser shows a **certificate error** or `make serve` says "not answering yet" | The first certificate takes up to a minute; run `make serve-status` again. Certificates renew automatically while Tailscale runs; if one expired while the Mac was off for a long time, quit and reopen Tailscale, then `make serve` again. |
+| Works, then goes **offline after a while** | The Mac slept. `caffeinate -s` only holds while on power, and closing the lid sleeps it unless an external display is attached. |
+| `make serve`: **Port 8000 is taken** | `make dev` is running; stop it first. |
+| `make serve`: **Tailscale Funnel is ON** | Something on this Mac is public. `tailscale funnel status`, turn it off. Alpha Desk refuses to run while it's on. |
+| Logged out on every device | `SESSION_SECRET` changed (that revokes all tokens). Log in again. |
 
 ### Back up your progress
 Each device holds its full progress. The server holds everything that has synced.
@@ -213,8 +268,8 @@ Until then the feature degrades visibly: a 501 "offline" message or a notice in 
 ## Roadmap
 - [x] M1: Dashboard, XP and levels, full SQL branch
 - [ ] M2: Python exercises, daily quests, streaks
-- [ ] M2.5: offline-first PWA, sync, mobile layouts, Netlify + self-hosted backend
-  (built; remote access via Tailscale still to do)
+- [ ] M2.5: offline-first PWA, sync, mobile layouts, Netlify + self-hosted backend on Tailscale
+  (built; sync waits on TODO(me) M2.5-1/M2.5-2)
 - [ ] M3: Flashcards, achievements, skill tree graph
 - [ ] M4: AI hints, PM Chat
 - [ ] M5: Boss fights, Interview Arena
