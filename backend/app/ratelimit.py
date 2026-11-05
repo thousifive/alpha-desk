@@ -37,8 +37,9 @@ class SlidingWindow:
 
 
 def client_key(request: Request) -> str:
-    # The direct peer. Behind a reverse proxy (Tailscale Funnel later) this is the proxy unless
-    # uvicorn runs with --proxy-headers, which rewrites request.client from X-Forwarded-For.
+    # The direct peer. Behind `tailscale serve` this is the proxy (in Docker: the Docker
+    # gateway) unless uvicorn's --proxy-headers trusts it (FORWARDED_ALLOW_IPS) and rewrites
+    # request.client from X-Forwarded-For.
     return request.client.host if request.client else "unknown"
 
 

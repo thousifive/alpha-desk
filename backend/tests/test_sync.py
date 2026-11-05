@@ -123,6 +123,79 @@ async def test_cors_allows_configured_origin_only(monkeypatch: pytest.MonkeyPatc
         assert await preflight("https://evil.example") is None
 
 
+NETLIFY = "https://alpha.netlify.app"
+
+
+async def _cross_origin_client(monkeypatch: pytest.MonkeyPatch) -> AsyncClient:
+    """The API as the Netlify PWA sees it: another origin, no cookie jar shared with login."""
+    from app.main import create_app
+
+    monkeypatch.setattr(get_settings(), "cors_origins", f"{NETLIFY},http://localhost:5173")
+    return AsyncClient(transport=ASGITransport(app=create_app()), base_url="https://api.ts.net")
+
+
+def _pna_preflight(origin: str) -> dict[str, str]:
+    # What Chrome sends before a public page calls a private (tailnet 100.x) address.
+    return {
+        "Origin": origin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type",
+        "Access-Control-Request-Private-Network": "true",
+    }
+
+
+async def test_private_network_preflight_allowed_for_configured_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with await _cross_origin_client(monkeypatch) as c:
+        r = await c.options("/api/auth/login", headers=_pna_preflight(NETLIFY))
+        assert r.status_code == 200
+        assert r.headers["access-control-allow-origin"] == NETLIFY
+        assert r.headers["access-control-allow-private-network"] == "true"
+        # No cookies cross origins: auth is the bearer header.
+        assert "access-control-allow-credentials" not in r.headers
+        # Dev origin from the same env var.
+        r = await c.options("/api/sync/events", headers=_pna_preflight("http://localhost:5173"))
+        assert r.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+async def test_private_network_preflight_from_other_origin_stays_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with await _cross_origin_client(monkeypatch) as c:
+        r = await c.options("/api/auth/login", headers=_pna_preflight("https://evil.example"))
+        # Without Allow-Origin the browser blocks the request, whatever else is in the reply.
+        assert r.status_code == 400
+        assert "access-control-allow-origin" not in r.headers
+
+
+async def test_plain_request_without_pna_still_works(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Safari and Firefox don't send the private-network header at all.
+    async with await _cross_origin_client(monkeypatch) as c:
+        h = _pna_preflight(NETLIFY)
+        del h["Access-Control-Request-Private-Network"]
+        r = await c.options("/api/sync/events", headers=h)
+        assert r.status_code == 200
+        assert "access-control-allow-private-network" not in r.headers
+
+
+async def test_cross_origin_login_then_bearer_requests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The whole Netlify -> ts.net flow: login returns a token, later calls carry only that."""
+    async with await _cross_origin_client(monkeypatch) as c:
+        origin = {"Origin": NETLIFY}
+        login = await c.post("/api/auth/login", json={"password": TEST_PASSWORD}, headers=origin)
+        assert login.status_code == 200
+        assert login.headers["access-control-allow-origin"] == NETLIFY
+        token = login.json()["token"]
+        # Like Safari blocking third-party cookies: drop whatever cookie login set.
+        c.cookies.clear()
+        auth = {**origin, "Authorization": f"Bearer {token}"}
+        me = await c.get("/api/auth/me", headers=auth)
+        assert me.status_code == 200
+        assert me.headers["access-control-allow-origin"] == NETLIFY
+        assert (await c.get("/api/auth/me", headers=origin)).status_code == 401
+
+
 # ---- routes -------------------------------------------------------------------------------
 
 

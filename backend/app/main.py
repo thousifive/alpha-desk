@@ -46,6 +46,11 @@ def create_app() -> FastAPI:
             allow_origins=origins,
             allow_methods=["GET", "POST", "PUT"],
             allow_headers=["Authorization", "Content-Type"],
+            # Chrome's Private Network Access: a public page (Netlify) calling a private
+            # address (the tailnet's 100.x) sends `Access-Control-Request-Private-Network:
+            # true` on the preflight and needs `...-Allow-Private-Network: true` back. Only
+            # matters for allowed origins: others still get no Allow-Origin, so stay blocked.
+            allow_private_network=True,
             max_age=600,
         )
     for r in (
