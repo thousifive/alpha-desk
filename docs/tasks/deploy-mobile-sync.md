@@ -187,3 +187,9 @@ no code changes and no Netlify changes.
 - Export and import of progress round-trip correctly.
 - All tests pass. List the manual checks I should run on each device, and which TODO(me)
   tasks are waiting for me.
+
+## Superseded (2026-11-05)
+The Cloudflare tunnel parts of this task (Part 5.5's tunnel, Cloudflare Access, the
+`https://api.<mydomain>` URL and the tunnel steps in Part 6's migration) are superseded by
+`docs/tasks/switch-to-tailscale.md`: the API is private to the tailnet via `tailscale serve`,
+with no Cloudflare and no custom domain. The rest of this task still stands.
