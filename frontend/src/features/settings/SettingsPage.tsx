@@ -7,6 +7,7 @@ import { countEvents, getDeviceId, getMeta } from '../../lib/local/store'
 import { syncNow } from '../../lib/sync/controller'
 import { useSyncStatus } from '../../lib/sync/hooks'
 import { relativeTime } from '../../lib/sync/pill'
+import { API_BASE } from '../../api/client'
 import { useLogout } from '../../api/hooks'
 import { todoFromMessage } from '../../lib/todos'
 
@@ -140,6 +141,10 @@ function SyncPanel({ cursor, rejected }: { cursor: number; rejected: number }) {
         <dd className="text-right">
           {online ? 'on' : s.reachability === 'down' ? 'off / unreachable' : 'checking…'}
         </dd>
+        <dt className="text-muted">Address</dt>
+        <dd className="truncate text-right" title={API_BASE || undefined}>
+          {API_BASE ? new URL(API_BASE).host : 'this site (dev proxy)'}
+        </dd>
         <dt className="text-muted">Last full sync</dt>
         <dd className="text-right">{s.lastSyncAt ? relativeTime(s.lastSyncAt) : 'never'}</dd>
         <dt className="text-muted">Server cursor</dt>
@@ -151,6 +156,12 @@ function SyncPanel({ cursor, rejected }: { cursor: number; rejected: number }) {
           </>
         )}
       </dl>
+      {s.reachability === 'down' && (
+        <p className="mt-3 text-xs text-muted">
+          The server is private to your Tailscale network. If it should be on, check that Tailscale
+          is connected on this device.
+        </p>
+      )}
       {s.locked.map((m) => {
         const t = todoFromMessage(m)
         return (

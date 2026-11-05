@@ -34,7 +34,7 @@ class FakeServer implements SyncApi {
       this.log.push(e)
       accepted++
     }
-    // Stored, but the phone never hears back (went to sleep, tunnel blipped).
+    // Stored, but the phone never hears back (went to sleep, network blipped).
     if (this.posts === this.failAfterStore) throw new OfflineError()
     return { accepted, duplicates: batch.length - accepted, rejected: 0 }
   }

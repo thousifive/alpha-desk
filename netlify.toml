@@ -14,7 +14,8 @@
 [build.environment]
   NODE_VERSION = "22"
   # VITE_API_URL is set in the Netlify UI (Site configuration → Environment variables):
-  # it's the tunnel URL, e.g. https://api.example.com. The build fails without it.
+  # the tailnet URL `make serve` prints, e.g. https://alpha-desk.<tailnet>.ts.net (reachable
+  # only from your own devices, over Tailscale). The build fails without it.
 
 # SPA: every unknown path serves the app; React Router takes it from there.
 # (Static files and /assets win because redirects without force=true don't shadow them.)

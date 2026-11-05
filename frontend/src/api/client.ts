@@ -16,7 +16,8 @@ export class OfflineError extends Error {
   }
 }
 
-// Empty in dev (Vite proxies /api). On Netlify: the tunnel URL, e.g. https://api.example.com.
+// Empty in dev (Vite proxies /api). On Netlify: the tailnet URL from `make serve`, e.g.
+// https://alpha-desk.<tailnet>.ts.net (private to your devices; no trailing slash).
 export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 const TIMEOUT_MS = 15_000

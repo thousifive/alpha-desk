@@ -27,7 +27,12 @@ describe('sync pill', () => {
     expect(pillView({ ...base, reachability: 'down' }, 1, NOW).text).toBe(
       'Offline · 1 change queued',
     )
-    expect(pillView({ ...base, reachability: 'down' }, 0, NOW).tone).toBe('calm')
+    expect(pillView({ ...base, reachability: 'down' }, 0, NOW)).toMatchObject({
+      text: 'Offline · server not reachable (is Tailscale on?)',
+      short: 'Offline',
+      tone: 'calm',
+    })
+    expect(off.title).toContain('Tailscale')
     expect(pillView({ ...base, syncing: true }, 3, NOW).text).toBe('Syncing…')
   })
 
